@@ -144,7 +144,7 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .msg-group.me .msg-bubble.emoji-bubble.has-reply{background:var(--bubble-me)!important;color:var(--bubble-me-text)!important}
 .msg-bubble.emoji-bubble.has-reply .time{display:none}
 
-#footer{background:var(--footer-bg);padding:8px 12px calc(8px + var(--safe-bottom));display:flex;flex-direction:column;border-top:1px solid var(--border);flex-shrink:0;position:relative;z-index:10;overflow:hidden}
+#footer{background:var(--footer-bg);padding:8px 12px calc(8px + var(--safe-bottom));display:flex;flex-direction:column;border-top:1px solid var(--border);flex-shrink:0;position:relative;z-index:10}
 #footer .footer-main{display:flex;align-items:center;gap:6px;width:100%;min-width:0}
 #footer .input-wrap{flex:1;min-width:0;display:flex;align-items:center;background:var(--bg);border-radius:22px;padding:4px 12px;border:1px solid var(--border);transition:.2s;min-height:40px}
 #footer .input-wrap:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px rgba(74,144,217,.12)}
@@ -279,8 +279,8 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .btn-danger{background:#ef4444;color:#fff;border:none;padding:8px 16px;border-radius:20px;font-size:13px;cursor:pointer;font-family:inherit}
 .btn-danger:active{transform:scale(.96)}
 
-.modal-overlay{position:fixed;inset:0;background:rgba(10,10,16,0.94);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);animation:fadeIn .2s ease;isolation:isolate;}
-.modal-box{background:#fff !important;border-radius:var(--radius);padding:24px 20px 20px;max-width:360px;width:100%;max-height:82vh;overflow-y:auto;color:#1a1a2e !important;animation:slideUp .25s ease;position:relative;z-index:10000;isolation:isolate;box-shadow:0 24px 80px rgba(0,0,0,.55);}
+.modal-overlay{position:fixed;inset:0;background:rgba(6,6,10,0.98);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);animation:fadeIn .2s ease;isolation:isolate;}
+.modal-box{background:#fff !important;border-radius:var(--radius);padding:24px 20px 20px;max-width:360px;width:100%;max-height:82vh;overflow-y:auto;color:#1a1a2e !important;animation:slideUp .25s ease;position:relative;z-index:10000;isolation:isolate;box-shadow:0 24px 80px rgba(0,0,0,.6);}
 .modal-box .modal-title{font-size:18px;font-weight:600;margin-bottom:16px;text-align:center}
 .modal-box label{font-size:13px;font-weight:500;color:#6b7280;display:block;margin-top:12px;margin-bottom:4px}
 .modal-box input,.modal-box textarea,.modal-box select{width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:15px;font-family:inherit;background:#f5f7fa;outline:none;color:#1a1a2e}
@@ -534,7 +534,6 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 
 .brand-sign{text-align:center;font-size:12px;color:#9ca3af;padding:22px 0 10px;letter-spacing:.5px;line-height:1.6}
 
-/* ===== 底部小屏兼容 ===== */
 @media (max-width:380px){
     .contact-avatar{width:44px;height:44px;}
     .msg-avatar{width:34px;height:34px;}
@@ -1269,7 +1268,7 @@ function unlockAudioOnce(){
 }
 
 // ======================================================================
-//  PWA 安装 & Service Worker（后台消息推送核心）
+//  PWA 安装 & Service Worker
 // ======================================================================
 function registerSWForNotifications(){
     if(!('serviceWorker' in navigator)) return;
@@ -1277,7 +1276,7 @@ function registerSWForNotifications(){
         navigator.serviceWorker.register('./sw.js', {scope:'./'}).then(reg => {
             console.log('[SW] 已注册', reg);
         }).catch(err => {
-            console.warn('[SW] 注册失败（请确认 sw.js 与 HTML 同目录，且使用 https 或 localhost）:', err);
+            console.warn('[SW] 注册失败:', err);
         });
     };
     if(document.readyState === 'complete') doRegister();
@@ -1326,7 +1325,7 @@ function installPWA(){
     if(isEdge){
         showToast('Edge：点击右上角 ··· → 应用 → 安装此站点为应用', 4200);
     } else if(isChrome){
-        showToast('Chrome：点击地址栏右侧的安装图标 ⊕，或菜单 → 安装应用', 4200);
+        showToast('Chrome：点击地址栏右侧的安装图标 ⊕，或 ⋮ 菜单 → 添加到主屏幕 / 安装应用', 4200);
     } else if(/iPhone|iPad|iPod/i.test(ua)){
         showToast('iOS Safari：点击分享按钮 → 添加到主屏幕', 4200);
     } else if(/Android/i.test(ua)){
@@ -1334,6 +1333,26 @@ function installPWA(){
     } else {
         showToast('请用 Edge / Chrome 打开后安装到桌面', 4200);
     }
+}
+
+/* Chrome / Edge 安装步骤指引 */
+function showInstallGuide(){
+    const ua = navigator.userAgent || '';
+    const isEdge = /Edg(e|A|iOS)?\//.test(ua) || /EdgiOS\//.test(ua);
+    const isChrome = /Chrome\//.test(ua) && !isEdge && !/OPR\//.test(ua) && !/SamsungBrowser\//.test(ua);
+    let steps = '';
+    if(isEdge){
+        steps = '<ol style="padding-left:18px;line-height:2;"><li>点击浏览器右上角的 <b>···</b> 菜单</li><li>找到 <b>应用</b> → <b>安装此站点为应用</b></li><li>点击 <b>安装</b> 即可</li></ol>';
+    }else if(isChrome){
+        steps = '<ol style="padding-left:18px;line-height:2;"><li>点击浏览器地址栏右侧的 <b>安装图标 ⊕</b></li><li>或点击右上角 <b>⋮</b> 菜单，找到 <b>添加到主屏幕</b> / <b>安装应用</b>（不同版本名称不同，效果一样）</li><li>点击 <b>添加 / 安装</b> 即可</li></ol>';
+    }else if(/iPhone|iPad|iPod/i.test(ua)){
+        steps = '<ol style="padding-left:18px;line-height:2;"><li>点击 Safari 底部的 <b>分享按钮</b></li><li>选择 <b>添加到主屏幕</b></li><li>点击 <b>添加</b> 即可</li></ol>';
+    }else if(/Android/i.test(ua)){
+        steps = '<ol style="padding-left:18px;line-height:2;"><li>点击浏览器右上角 <b>⋮</b> 菜单</li><li>选择 <b>添加到主屏幕</b> / <b>安装应用</b></li><li>点击 <b>添加</b> 即可</li></ol>';
+    }else{
+        steps = '<div>请使用 Edge 或 Chrome 浏览器打开临冬，然后点击地址栏右侧的安装图标。</div>';
+    }
+    showModal('📲 安装到桌面', `<div class="setting-sub" style="margin-bottom:12px;line-height:1.8;">将临冬安装到桌面，可以像原生App一样使用，并支持后台消息通知。</div><div style="background:var(--bg);border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.7;">${steps}</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">知道了</button><button class="btn-confirm" onclick="closeModal();installPWA();">尝试安装</button></div>`);
 }
 
 // ======================================================================
@@ -3181,7 +3200,7 @@ function renderSettingsPage(){
     html += `<div class="me-menu">`;
     menuItems.forEach(item=>{ html += `<div class="me-menu-item" onclick="openSettingsSub('${item.key}')"><div class="me-menu-icon">${item.icon}</div><div class="me-menu-text"><div class="me-menu-title">${item.title}</div><div class="me-menu-desc">${item.desc}</div></div><div class="me-menu-arrow">›</div></div>`; });
     html += `</div>`;
-    html += `<div style="text-align:center;font-size:12px;color:var(--text-light);padding:24px 16px 32px;line-height:1.9;letter-spacing:.3px;"><div>小红书@耀眼的梨（6868972505）</div><div>二传分享链接请标注作者署名@耀衍的梨</div></div>`;
+    html += `<div style="text-align:center;font-size:12px;color:var(--text-light);padding:24px 16px 32px;line-height:1.9;letter-spacing:.3px;"><div>作者账号（小红书）：6868972505</div><div>二传分享链接请标注作者署名耀衍的梨和字卡名字临冬</div></div>`;
 
     body.innerHTML = html;
     if(currentSettingsSub) renderSettingsSubPage(currentSettingsSub);
@@ -3298,7 +3317,7 @@ function buildSoundSettingsHtml(){
     html += `<div class="setting-item"><span class="label">仅后台时通知</span><div class="value"><div class="toggle-switch ${st.notifyOnlyWhenHidden?'active':''}" onclick="toggleSetting('notifyOnlyWhenHidden')"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">通知权限：${permText}</span><div class="value"><button class="btn-outline" onclick="requestNotificationPermission()">申请权限</button><button class="btn-outline" onclick="testNotification()">测试弹窗</button></div></div>`;
     html += `<div class="setting-item"><span class="label">运行模式：${isPWA?'桌面模式 ✅':'浏览器标签页'}</span><div class="value">${isPWA?'<span style="font-size:12px;color:var(--text-light);">已安装</span>':'<button class="btn-primary" onclick="installPWA()" style="padding:6px 14px;font-size:13px;">📲 安装到桌面</button>'}</div></div>`;
-    html += `<div class="setting-sub" style="background:rgba(74,144,217,.08);padding:10px 12px;border-radius:10px;margin-top:6px;line-height:1.7;">💡 安装与后台弹窗要点：<br>① Edge / Chrome：点击上方「安装到桌面」，或点击地址栏右侧的安装图标；<br>② 若你的浏览器只有「添加到主屏幕」而没有安装选项，使用浏览器菜单中的「添加到主屏幕」即可；<br>③ 安装后点击「申请权限」允许通知；<br>④ 保持「后台保活」开启，最小化窗口后仍能收到消息通知。</div>`;
+    html += `<div class="setting-sub" style="background:rgba(74,144,217,.08);padding:10px 12px;border-radius:10px;margin-top:6px;line-height:1.7;">💡 安装与后台弹窗要点：<br>① <b>Chrome</b>：点击地址栏右侧的安装图标 ⊕，或 ⋮ 菜单 → <b>添加到主屏幕</b> / 安装应用（名称不同但效果一样）；<br>② <b>Edge</b>：点击右上角 ··· → 应用 → 安装此站点为应用；<br>③ 安装后点击「申请权限」允许通知；<br>④ 保持「后台保活」开启，最小化窗口后仍能收到消息通知。</div>`;
     html += `<div style="padding:0 4px;margin-top:8px;"><button class="btn-outline" style="width:100%;justify-content:center;" onclick="testBackgroundNotification()">🔔 测试后台通知（5秒后发送，请立即切后台）</button></div>`;
     html += `<div class="setting-item" style="margin-top:10px;"><span class="label">后台保活</span><div class="value"><div class="toggle-switch ${st.keepAlive?'active':''}" onclick="toggleSetting('keepAlive')"></div></div></div>`;
     html += '</div>';
@@ -4882,7 +4901,7 @@ async function restoreAssetsFromIDB(){
 }
 
 // ======================================================================
-//  键盘弹起适配（加保护，避免异常高度导致输入区消失）
+//  键盘弹起适配
 // ======================================================================
 function setupKeyboardViewportFix(){
     const app = document.getElementById('app');
@@ -4907,7 +4926,6 @@ function setupKeyboardViewportFix(){
             const top = Math.round(vv.offsetTop);
             const winH = window.innerHeight;
             const kbOpen = h < winH - 120;
-            // 保护：高度过小或异常时直接恢复默认布局，避免底部按钮被裁掉
             if(kbOpen && h > 240 && h < winH){
                 app.style.position = 'fixed';
                 app.style.top = top + 'px';
