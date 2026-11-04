@@ -136,9 +136,9 @@ self.addEventListener('push', (event) => {
     const title = payload.title || '临冬';
     const options = {
         body: payload.body || '你有一条新消息',
-        icon: payload.icon || 'https://aka.doubaocdn.com/s/c50NFcp9ti',
-        badge: 'https://aka.doubaocdn.com/s/c50NFcp9ti',
-        tag: payload.tag || ('lingdong-push-' + Date.now()),
+                icon: payload.icon || 'icon.png',
+        badge: 'icon.png',
+tag: payload.tag || ('lingdong-push-' + Date.now()),
         data: payload.data || {},
         silent: false,
         requireInteraction: false,
@@ -165,8 +165,8 @@ self.addEventListener('message', (event) => {
         event.waitUntil(
             self.registration.showNotification(n.title || '临冬', {
                 body: n.body || '',
-                icon: n.icon || 'https://aka.doubaocdn.com/s/c50NFcp9ti',
-                badge: 'https://aka.doubaocdn.com/s/c50NFcp9ti',
+                icon: n.icon || 'icon.png',
+                badge: 'icon.png',
                 tag: n.tag || ('lingdong-' + Date.now()),
                 data: n.data || {},
                 silent: false,
