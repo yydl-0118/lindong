@@ -115,13 +115,13 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .msg-avatar img{width:100%;height:100%;object-fit:cover}
 .msg-body{display:flex;flex-direction:column;min-width:0;max-width:100%}
 .msg-group.me .msg-body{align-items:flex-end}
-.msg-bubble{padding:10px 14px;border-radius:var(--bubble-radius);word-break:break-word;line-height:1.5;font-size:var(--msg-font-size);position:relative;max-width:100%;box-shadow:0 1px 2px rgba(0,0,0,.04);background-clip:padding-box;}
+.msg-bubble{padding:10px 14px;border-radius:var(--bubble-radius);word-break:break-word;line-height:1.5;font-size:var(--msg-font-size);position:relative;max-width:100%;box-shadow:0 1px 2px rgba(0,0,0,.04);background-clip:padding-box;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
 .msg-group.me .msg-bubble{background:var(--bubble-me);color:var(--bubble-me-text);border-bottom-right-radius:4px}
 .msg-group.other .msg-bubble{background:var(--bubble-other);color:var(--bubble-other-text);border-bottom-left-radius:4px}
 .msg-bubble .time{display:none}
 
 /* ===== 引用消息（可点击跳转） ===== */
-.msg-bubble .reply-ref{font-size:12px;opacity:.75;padding:4px 8px;background:rgba(0,0,0,.06);border-radius:6px;margin-bottom:6px;display:block;border-left:3px solid var(--primary-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;cursor:pointer;transition:background .15s,opacity .15s;}
+.msg-bubble .reply-ref{font-size:12px;opacity:1;padding:4px 8px;background:rgba(0,0,0,.08);border-radius:6px;margin-bottom:6px;display:block;border-left:3px solid var(--primary-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;cursor:pointer;transition:background .15s,opacity .15s;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
 .msg-bubble .reply-ref:active{background:rgba(0,0,0,.16);opacity:1;}
 
 /* ===== 跳转高亮 ===== */
@@ -150,7 +150,7 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .msg-group.me .auto-badge{left:auto;right:-8px}
 
 /* ===== 表情 / 图片气泡：贴纸不再透出背景 ===== */
-.msg-bubble.emoji-bubble{background:transparent!important;color:transparent!important;box-shadow:none!important;border:none!important;padding:0!important;line-height:0;max-width:200px;position:relative}
+.msg-bubble.emoji-bubble{background:transparent!important;color:transparent!important;box-shadow:none!important;border:none!important;padding:0!important;line-height:0;max-width:200px;position:relative;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
 .msg-bubble.emoji-bubble .emoji-img{max-width:110px;max-height:120px;border-radius:var(--bubble-radius);display:block;box-shadow:0 2px 8px rgba(0,0,0,.08);background:#fff;isolation:isolate;}
 .msg-bubble.emoji-bubble .emoji-img.img-large{max-width:180px;max-height:200px}
 .msg-bubble.emoji-bubble .time{display:none}
@@ -1383,6 +1383,7 @@ function installPWA(){
         showToast('临冬已经在桌面模式运行 ✅');
         return;
     }
+    // 如果浏览器支持直接弹窗安装（Edge 或部分条件满足的 Chrome）
     if(deferredInstallPrompt){
         try{
             deferredInstallPrompt.prompt();
@@ -1394,20 +1395,9 @@ function installPWA(){
             return;
         }catch(e){}
     }
-    const ua = navigator.userAgent || '';
-    const isEdge = /Edg(e|A|iOS)?\//.test(ua) || /EdgiOS\//.test(ua);
-    const isChrome = /Chrome\//.test(ua) && !isEdge && !/OPR\//.test(ua) && !/SamsungBrowser\//.test(ua);
-    if(isEdge){
-        showToast('Edge：点击右上角 ··· → 应用 → 安装此站点为应用', 4200);
-    } else if(isChrome){
-        showToast('Chrome：点击地址栏右侧的安装图标 ⊕，或 ⋮ 菜单 → 添加到主屏幕 / 安装应用', 4200);
-    } else if(/iPhone|iPad|iPod/i.test(ua)){
-        showToast('iOS Safari：点击分享按钮 → 添加到主屏幕', 4200);
-    } else if(/Android/i.test(ua)){
-        showToast('安卓：点击浏览器菜单 → 添加到主屏幕 / 安装应用', 4200);
-    } else {
-        showToast('请用 Edge / Chrome 打开后安装到桌面', 4200);
-    }
+    
+    // 无法直接弹窗时，直接展示详细的图文安装指南
+    showInstallGuide();
 }
 
 /* Chrome / Edge 安装步骤指引 */
@@ -1415,21 +1405,40 @@ function showInstallGuide(){
     const ua = navigator.userAgent || '';
     const isEdge = /Edg(e|A|iOS)?\//.test(ua) || /EdgiOS\//.test(ua);
     const isChrome = /Chrome\//.test(ua) && !isEdge && !/OPR\//.test(ua) && !/SamsungBrowser\//.test(ua);
+    
+    let envTip = '';
+    if(location.protocol === 'file:'){
+        envTip = '<div style="color:#ef4444;margin-bottom:12px;font-weight:600;background:rgba(239,68,68,.1);padding:10px;border-radius:8px;">⚠️ 当前为本地文件模式（file://），浏览器禁止安装应用。请将代码部署到 HTTPS 服务器或 localhost 访问后再试。</div>';
+    } else if(location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'){
+        envTip = '<div style="color:#ef4444;margin-bottom:12px;font-weight:600;background:rgba(239,68,68,.1);padding:10px;border-radius:8px;">⚠️ 当前为非安全协议（HTTP），Chrome 可能会隐藏安装图标。建议使用 HTTPS 环境访问。</div>';
+    }
+
     let steps = '';
     if(isEdge){
         steps = '<ol style="padding-left:18px;line-height:2;"><li>点击浏览器右上角的 <b>···</b> 菜单</li><li>找到 <b>应用</b> → <b>安装此站点为应用</b></li><li>点击 <b>安装</b> 即可</li></ol>';
     }else if(isChrome){
-        steps = '<ol style="padding-left:18px;line-height:2;"><li>点击浏览器地址栏右侧的 <b>安装图标 ⊕</b></li><li>或点击右上角 <b>⋮</b> 菜单，找到 <b>添加到主屏幕</b> / <b>安装应用</b>（不同版本名称不同，效果一样）</li><li>点击 <b>添加 / 安装</b> 即可</li></ol>';
+        steps = '<ol style="padding-left:18px;line-height:2;"><li>点击浏览器地址栏右侧的 <b>安装图标 ⊕</b>（一个电脑加向下箭头的图标）</li><li>如果没有图标，点击右上角 <b>⋮</b> 菜单，找到 <b>保存并分享</b> → <b>安装应用</b> 或 <b>添加到主屏幕</b>（不同版本名称不同，效果一样）</li><li>在弹出的窗口中点击 <b>安装</b> 即可</li></ol>';
     }else if(/iPhone|iPad|iPod/i.test(ua)){
-        steps = '<ol style="padding-left:18px;line-height:2;"><li>点击 Safari 底部的 <b>分享按钮</b></li><li>选择 <b>添加到主屏幕</b></li><li>点击 <b>添加</b> 即可</li></ol>';
+        steps = '<ol style="padding-left:18px;line-height:2;"><li>点击 Safari 底部的 <b>分享按钮</b>（一个方框向上箭头的图标）</li><li>向下滑动，选择 <b>添加到主屏幕</b></li><li>点击右上角的 <b>添加</b> 即可</li></ol>';
     }else if(/Android/i.test(ua)){
         steps = '<ol style="padding-left:18px;line-height:2;"><li>点击浏览器右上角 <b>⋮</b> 菜单</li><li>选择 <b>添加到主屏幕</b> / <b>安装应用</b></li><li>点击 <b>添加</b> 即可</li></ol>';
     }else{
         steps = '<div>请使用 Edge 或 Chrome 浏览器打开临冬，然后点击地址栏右侧的安装图标。</div>';
     }
-    showModal('📲 安装到桌面', `<div class="setting-sub" style="margin-bottom:12px;line-height:1.8;">将临冬安装到桌面，可以像原生App一样使用，并支持后台消息通知。</div><div style="background:var(--bg);border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.7;">${steps}</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">知道了</button><button class="btn-confirm" onclick="closeModal();installPWA();">尝试安装</button></div>`);
+    
+    showModal('📲 安装到桌面', `
+        ${envTip}
+        <div class="setting-sub" style="margin-bottom:12px;line-height:1.8;">将临冬安装到桌面，可以像原生App一样全屏运行，并支持后台消息通知。</div>
+        <div style="background:var(--bg);border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.7;">
+            <b>${isChrome ? 'Chrome 浏览器安装步骤：' : (isEdge ? 'Edge 浏览器安装步骤：' : '安装步骤：')}</b>
+            ${steps}
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">知道了</button>
+            ${(deferredInstallPrompt && !envTip) ? '<button class="btn-confirm" onclick="closeModal();installPWA();">立即安装</button>' : ''}
+        </div>
+    `);
 }
-
 // ======================================================================
 //  系统通知
 // ======================================================================
@@ -3334,7 +3343,7 @@ function renderSettingsPage(){
     html += `<div class="me-menu">`;
     menuItems.forEach(item=>{ html += `<div class="me-menu-item" onclick="openSettingsSub('${item.key}')"><div class="me-menu-icon">${item.icon}</div><div class="me-menu-text"><div class="me-menu-title">${item.title}</div><div class="me-menu-desc">${item.desc}</div></div><div class="me-menu-arrow">›</div></div>`; });
     html += `</div>`;
-    html += `<div style="text-align:center;font-size:12px;color:var(--text-light);padding:24px 16px 32px;line-height:1.9;letter-spacing:.3px;"><div>作者：小红书账号（6868972505）</div><div>二传分享链接请标注作者署名耀衍的梨和字卡临冬</div></div>`;
+    html += `<div style="text-align:center;font-size:12px;color:var(--text-light);padding:24px 16px 32px;line-height:1.9;letter-spacing:.3px;"><div>小红书@耀眼的梨（6868972505）</div><div>二传分享链接请标注作者署名@耀衍的梨</div></div>`;
 
     body.innerHTML = html;
     if(currentSettingsSub) renderSettingsSubPage(currentSettingsSub);
@@ -3481,7 +3490,7 @@ function buildHelpSettingsHtml(){
             title: '字卡玩法问题',
             content: `1. 继续说：点击头像等 3 秒会自动发出。<br>
 2. 音乐：上传音乐可使用网易云，只能导入无会员歌曲，且需要自己修改歌名。<br>
-3. 气泡问题：有一些气泡贴纸会透出来，在使用决策/图片时贴纸可能会透出来，修复很久修复不了，所以只能找到合适的气泡，但是不影响使用。<br>
+3.群聊：可以设置管理员。拥有管理员的人可以禁言其他不是管理员的人且群主不能解除管理员的禁言。群主可以踢出群内人，有概率对方会强制进入群聊。互为管理员者不能禁言对方。群主可禁言踢出其他人。<br>
 4. 安装浏览器桌面：目前只能使用 Edge 安装，Chrome 浏览器只能添加，修复很多次无果，但 Edge 可以，已测试。`
         },
         {
@@ -5047,14 +5056,16 @@ async function setupManifest(){
         };
 
         if(location.protocol === 'file:') return;
-        const blob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
-        const url = URL.createObjectURL(blob);
+        
+        // 使用 data: URL 替代 Blob URL，Chrome 兼容性更好
+        const manifestStr = encodeURIComponent(JSON.stringify(manifest));
+        const dataUrl = 'data:application/manifest+json;charset=utf-8,' + manifestStr;
+        
         let link = document.querySelector('link[rel="manifest"]');
         if(!link){ link = document.createElement('link'); link.rel = 'manifest'; document.head.appendChild(link); }
-        link.href = url;
+        link.href = dataUrl;
     }catch(e){}
 }
-
 // ======================================================================
 //  IDB 镜像恢复
 // ======================================================================
