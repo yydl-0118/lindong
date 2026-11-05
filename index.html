@@ -871,7 +871,6 @@ let _wcComposing = false;
 let _wcBatchMode = false;
 let _wcBatchSelected = new Set();
 let _wcBatchGroupId = null;
-
 async function requestWakeLock(){
     try{
         if('wakeLock' in navigator){
@@ -888,98 +887,48 @@ function releaseWakeLock(){
 document.addEventListener('visibilitychange', async () => {
     if(document.visibilityState === 'visible' && data.settings.keepAlive){
         await requestWakeLock();
-        // 静音振荡器守护：若音频上下文被挂起则恢复（不发声）
-        if(keepAliveOsc){
-            const ctx = audioCtx;
-            if(ctx && ctx.state === 'suspended'){ ctx.resume().catch(()=>{}); }
-        } else {
-            startSilentOscillator();
-        }
-        startKeepAliveHeartbeat();
     }
 });
-// ======================================================================
-//  【后台保活 · 不抢其他 App 音频焦点版】
-//   1) Wake Lock 保持页面活跃（无声音）
-//   2) gain=0 的静音振荡器（完全无声，不触发媒体播放）
-//   3) 定时心跳 + 不可见 DOM 微变更，防止 JS 被节流
-//   不再使用 <audio> 循环播放，避免抢占音频焦点压低其他 App 音量
-// ======================================================================
-
-/* ---------- 静音振荡器（gain=0，完全无声） ---------- */
-function startSilentOscillator(){
-    if(keepAliveOsc) return;
-    try{
-        const ctx = ensureAudio();
-        if(!ctx) return;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        gain.gain.value = 0;        // 关键：0 增益，彻底静音
-        osc.frequency.value = 20;
-        osc.type = 'sine';
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        keepAliveOsc = osc;
-        keepAliveGain = gain;
-        const resumeTick = () => {
-            if(!keepAliveOsc) return;
-            const c = audioCtx;
-            if(c && c.state === 'suspended'){ c.resume().catch(()=>{}); }
-        };
-        keepAliveTimer = setInterval(resumeTick, 15000);
-    }catch(e){ keepAliveOsc = null; keepAliveGain = null; }
-}
-
-/* ---------- DOM 心跳（不可见，防止 JS 被节流） ---------- */
-function startKeepAliveHeartbeat(){
-    if(keepAliveTickTimer) return;
-    if(!keepAliveDomEl){
-        keepAliveDomEl = document.createElement('div');
-        keepAliveDomEl.setAttribute('aria-hidden','true');
-        keepAliveDomEl.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
-        keepAliveDomEl.textContent = '0';
-        document.body.appendChild(keepAliveDomEl);
-    }
-    let n = 0;
-    keepAliveTickTimer = setInterval(()=>{
-        n = (n + 1) % 1000000;
-        try{ keepAliveDomEl.textContent = String(n); }catch(e){}
-        if(document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
-    }, 20000);
-}
-
-/* ---------- 守护：静音振荡器被挂起时恢复（不发声） ---------- */
-function startKeepAliveWatch(){
-    stopKeepAliveWatch();
-    keepAliveWatchTimer = setInterval(()=>{
-        if(!keepAliveOsc){ startSilentOscillator(); return; }
-        const ctx = audioCtx;
-        if(ctx && ctx.state === 'suspended'){ ctx.resume().catch(()=>{}); }
-    }, 15000);
-}
-function stopKeepAliveWatch(){
-    if(keepAliveWatchTimer){ clearInterval(keepAliveWatchTimer); keepAliveWatchTimer = null; }
-}
-
 /* ---------- 启动 / 停止 ---------- */
 function startKeepAliveAudio(){
-    // 名称保留兼容旧调用；实际为无声音保活
-    startSilentOscillator();
-    startKeepAliveHeartbeat();
-    startKeepAliveWatch();
-    requestWakeLock();
+    if(keepAliveAudio) {
+        if(keepAliveAudio.paused) keepAliveAudio.play().catch(()=>{});
+        return;
+    }
+    try{
+        // 生成 1 秒的极低音量音频（防止被系统判定为静音而挂起）
+        const sr=8000,ns=sr;const buf=new ArrayBuffer(44+ns*2);const v=new DataView(buf);
+        const ws=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+        ws(0,'RIFF');v.setUint32(4,36+ns*2,true);ws(8,'WAVE');ws(12,'fmt ');v.setUint32(16,16,true);
+        v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);
+        v.setUint16(32,2,true);v.setUint16(34,16,true);ws(36,'data');v.setUint32(40,ns*2,true);
+        
+        const blob=new Blob([buf],{type:'audio/wav'});
+        keepAliveAudio=new Audio(URL.createObjectURL(blob));
+        keepAliveAudio.loop=true;
+        keepAliveAudio.volume=0.001; // 极小音量，不扰民
+        keepAliveAudio.play().catch(()=>{});
+        
+        requestWakeLock();
+
+        // 【核心】每 10 秒检查一次，防止被系统偷停
+        if(keepAliveTimer) clearInterval(keepAliveTimer);
+        keepAliveTimer = setInterval(() => {
+            if (data.settings.keepAlive && keepAliveAudio && keepAliveAudio.paused) {
+                keepAliveAudio.play().catch(()=>{});
+                requestWakeLock();
+            }
+        }, 10000);
+    }catch(e){}
 }
+
 function stopKeepAliveAudio(){
-    stopKeepAliveWatch();
-    if(keepAliveTimer){ clearInterval(keepAliveTimer); keepAliveTimer = null; }
-    if(keepAliveTickTimer){ clearInterval(keepAliveTickTimer); keepAliveTickTimer = null; }
-    if(keepAliveGain){ try{ keepAliveGain.gain.value = 0; }catch(e){} keepAliveGain = null; }
-    if(keepAliveOsc){ try{ keepAliveOsc.stop(); keepAliveOsc.disconnect(); }catch(e){} keepAliveOsc = null; }
-    if(keepAliveDomEl){ try{ keepAliveDomEl.remove(); }catch(e){} keepAliveDomEl = null; }
-    keepAliveAudio = null;
+    if(keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
+    if(keepAliveAudio){ try{ keepAliveAudio.pause(); }catch(e){} keepAliveAudio = null; }
     releaseWakeLock();
-}// ======================================================================
+}
+
+// ======================================================================
 //  存储
 // ======================================================================
 function genId(){return Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);}
@@ -4126,7 +4075,7 @@ function showDecisionModal(){
             memberHtml = `<label>谁来回答（可多选，选中的每位成员都会回答）</label><div class="group-member-list" id="decisionMembers" style="max-height:170px;background:#fff;">` + members.map(m=>{const av = m.avatar ? `<img src="${m.avatar}" alt="">` : escapeHtml((m.name||'?')[0].toUpperCase());return `<label class="group-member-item selected" style="cursor:pointer;background:#fff;"><div class="gmi-avatar">${av}</div><div class="gmi-name">${escapeHtml(m.name)}</div><input type="checkbox" value="${m.id}" checked style="width:20px;height:20px;accent-color:var(--primary);flex-shrink:0;" onchange="this.closest('.group-member-item').classList.toggle('selected', this.checked)"></label>`;}).join('') + `</div><div class="setting-sub" style="margin-bottom:4px;">每位被勾选的成员都会各自随机选择一个答案发到群里</div>`;
         }
     }
-    showModal('🎲 决策助手',`<label>你的问题</label><input id="decisionQuestion" placeholder="例如：今天我要不要去吃饭？">${memberHtml}<label>选项（一行一个，至少两个）</label><textarea id="decisionOptions" rows="4" placeholder="要&#10;不要"></textarea><label>发送延迟（1-10 秒）</label><input type="number" id="decisionDelay" value="3" min="1" max="10" step="1"><div class="setting-sub">单聊时对方会在设定延迟后随机选择一个答案发给你；群聊时每位被选中的成员都会回答</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-confirm" onclick="confirmDecision()">帮我决定</button></div>`);
+    showModal('🎲 决策助手',`<label>你的问题</label><input type="search" id="decisionQuestion" placeholder="例如：今天我要不要去吃饭？" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="-webkit-appearance:none; appearance:none;">${memberHtml}<label>选项（一行一个，至少两个）</label><textarea id="decisionOptions" rows="4" placeholder="要&#10;不要" autocomplete="off" spellcheck="false"></textarea><label>发送延迟（1-10 秒）</label><input type="number" id="decisionDelay" value="3" min="1" max="10" step="1" autocomplete="off"><div class="setting-sub">单聊时对方会在设定延迟后随机选择一个答案发给你；群聊时每位被选中的成员都会回答</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-confirm" onclick="confirmDecision()">帮我决定</button></div>`);
 }
 function confirmDecision(){
     const question=document.getElementById('decisionQuestion').value.trim();
@@ -4253,7 +4202,7 @@ function getMusicAudio(){
             if(data.music){data.music.playing=true;saveData();}
             updateMusicPlayUI();updateMusicBottomBar();
             // 音乐播放时停掉静音振荡器，让音乐独占音频通道
-            if(keepAliveOsc){ try{ keepAliveOsc.stop(); keepAliveOsc.disconnect(); }catch(e){} keepAliveOsc=null; keepAliveGain=null; }
+            if(keepAliveAudio){ try{ keepAliveAudio.pause(); }catch(e){} }
         });
         musicAudio.addEventListener('pause',()=>{
             if(data.music){data.music.playing=false;saveData();}
@@ -4261,7 +4210,7 @@ function getMusicAudio(){
             if(pauseGuardToken>0)return;
             if(data.music&&data.music.controlAllowed){data.music.controlAllowed=false;saveData();showToast('⏸ 已暂停播放，对方的切歌/暂停权限已收回');}
             // 音乐暂停后，若保活开启则恢复静音振荡器
-            if(data.settings && data.settings.keepAlive && !keepAliveOsc){ startSilentOscillator(); }
+           if(data.settings && data.settings.keepAlive && keepAliveAudio){ keepAliveAudio.play().catch(()=>{}); }
         });
         musicAudio.addEventListener('error',()=>showToast('⚠️ 音频加载失败，链接可能不可用'));
     }
@@ -5502,6 +5451,24 @@ function scheduleSplashHide(){
 //  初始化
 // ======================================================================
 async function init(){
+    // ========== 解决 Chrome 输入框闪现工具栏 ==========
+    document.addEventListener('focusin', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            e.target.setAttribute('autocomplete', 'new-password'); // 骗过 Chrome，让它以为是密码框
+            e.target.setAttribute('autocorrect', 'off');
+            e.target.setAttribute('autocapitalize', 'off');
+            e.target.setAttribute('spellcheck', 'false');
+            e.target.setAttribute('data-lpignore', 'true'); 
+        }
+    });
+    document.querySelectorAll('input, textarea').forEach(el => {
+        if(el.type !== 'file' && el.type !== 'color' && el.type !== 'range' && el.type !== 'checkbox') {
+            el.setAttribute('autocomplete', 'new-password');
+            el.setAttribute('spellcheck', 'false');
+        }
+    });
+
+    // ========== 加载数据和初始化界面 ==========
     loadData();
     try{ await restoreFromIDB(); }catch(e){}
     try{applyTheme();}catch(e){}
@@ -5514,25 +5481,38 @@ async function init(){
     try{setupBackGuard();}catch(e){}
     try{restoreMuteTimers();}catch(e){}
     try{setupKeyboardViewportFix();}catch(e){}
+    
     startTickWorker();
     if(data.replySettings.randomStatus)startRandomStatus();
     scheduleAutoMessage();
     data.contacts.forEach(c=>{ if(isGroup(c) && c.groupAuto && c.groupAuto.enabled) scheduleGroupAuto(c.id); });
-    if(data.settings.keepAlive)startKeepAliveAudio();
+    
+    // ========== 启动后台保活 ==========
+    if(data.settings.keepAlive) startKeepAliveAudio();
 
     document.addEventListener('click', requestNotifPermissionOnGesture, {once:true, capture:true});
     document.addEventListener('touchstart', requestNotifPermissionOnGesture, {once:true, capture:true});
     document.addEventListener('touchstart',unlockAudioOnce,{once:true,passive:true});
     document.addEventListener('click',unlockAudioOnce,{once:true});
 
-    const input=document.getElementById('msgInput');
+    // ========== 绑定聊天输入框事件 ==========
+        const input=document.getElementById('msgInput');
     if(input){
         input.addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px';});
-        input.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+        input.addEventListener('keydown',function(e){
+            // 【新增】判断如果是手机触屏设备，按下回车键不拦截，允许换行
+            if ('ontouchstart' in window) return; 
+
+            if(e.key==='Enter' && !e.shiftKey){
+                e.preventDefault();
+                sendMessage();
+            }
+        });
     }
     const sendBtn=document.getElementById('sendBtn');
     if(sendBtn)sendBtn.addEventListener('click',sendMessage);
 
+    // 点头像触发继续说
     const headerAvatar=document.getElementById('headerAvatar');
     if(headerAvatar){
         let _lastPoke=0;
@@ -5542,27 +5522,21 @@ async function init(){
     }
 
     scheduleSplashHide();
-
     registerSWForNotifications();
     try{ setupManifest(); }catch(e){}
 
-    try{
-        const params = new URLSearchParams(location.search);
-        const openChatId = params.get('openChat');
-        if(openChatId && getContact(openChatId)){
-            setTimeout(() => openChat(openChatId), 1200);
-        }
-    }catch(e){}
-
+    // ========== 生命周期保存数据 ==========
     window.addEventListener('pagehide',()=>{try{flushSave();}catch(e){}});
     window.addEventListener('beforeunload',()=>{try{flushSave();}catch(e){}});
     window.addEventListener('freeze',()=>{try{flushSave();}catch(e){}});
-   document.addEventListener('visibilitychange',()=>{
-    if(document.hidden){ try{flushSave();}catch(e){} }
-    else { try{scheduler.tick();}catch(e){} }
-});
-window.addEventListener('focus',()=>{ try{scheduler.tick();}catch(e){} });
-window.addEventListener('pageshow',()=>{ try{scheduler.tick();}catch(e){} });
+    document.addEventListener('visibilitychange',()=>{
+        if(document.hidden){ try{flushSave();}catch(e){} }
+        else { try{scheduler.tick();}catch(e){} }
+    });
+    window.addEventListener('focus',()=>{ try{scheduler.tick();}catch(e){} });
+    window.addEventListener('pageshow',()=>{ try{scheduler.tick();}catch(e){} });
+    
+    // 定时保存
     setInterval(()=>{try{saveNow();}catch(e){}}, 15000);
 
     switchPage('contacts');
