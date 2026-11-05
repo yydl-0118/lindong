@@ -268,9 +268,8 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .custom-css-wrap{display:flex;flex-direction:column;gap:8px}
 .custom-css-wrap textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--text);outline:none;resize:vertical;min-height:140px;line-height:1.5}
 .custom-css-actions{display:flex;gap:8px}
-
-.status-tag{display:inline-flex;align-items:center;background:var(--border);padding:3px 10px;border-radius:12px;font-size:13px;margin:3px 4px 3px 0}
-.status-tag .del-status{margin-left:6px;cursor:pointer;color:#ef4444;font-weight:600}
+.status-tag{display:inline-flex;align-items:center;gap:4px;background:var(--border);padding:4px 10px;border-radius:12px;font-size:13px;max-width:100%;word-break:break-word;box-sizing:border-box;}
+.status-tag .del-status{cursor:pointer;color:#ef4444;font-weight:600;flex-shrink:0;line-height:1;}
 
 .me-header{display:flex;align-items:center;gap:16px;padding:calc(30px + var(--safe-top)) 20px 24px;background:var(--header-bg);border-bottom:1px solid var(--border);}
 .me-avatar{width:78px;height:78px;border-radius:20px;overflow:hidden;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:600;position:relative;flex-shrink:0;box-shadow:0 6px 18px rgba(0,0,0,.12);cursor:pointer}
@@ -892,6 +891,9 @@ function releaseWakeLock(){
 }
 document.addEventListener('visibilitychange', async () => {
     if(document.visibilityState === 'visible'){
+        if(audioCtx && audioCtx.state === 'suspended'){
+            try{ await audioCtx.resume(); }catch(e){}
+        }
         if(data.settings.keepAlive){
             await requestWakeLock();
             try{ scheduler.tick(); }catch(e){}
@@ -1211,7 +1213,12 @@ function fmtMusicTime(s){if(s==null||!isFinite(s)||s<0)return '00:00';return Str
 function getActiveContact(){if(!data||!data.activeContactId) return null;return data.contacts.find(c=>c.id===data.activeContactId)||null;}
 function getContact(id){if(!data||!Array.isArray(data.contacts)) return null;return data.contacts.find(c=>c.id===id)||null;}
 function isGroup(c){return c && c.type === 'group';}
-
+function isStatusOnline(status){
+    const s = String(status == null ? '' : status).trim();
+    if(!s) return true;
+    if(s === '离线' || s === '隐身') return false;
+    return true;
+}
 function isStandaloneMode(){
     return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || (window.navigator && window.navigator.standalone === true);
 }
@@ -1308,49 +1315,122 @@ function ensureAudio(){
     if(audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
     return audioCtx;
 }
+function playToneSequence(ctx, notes, opt){
+    opt = opt || {};
+    const step = opt.step != null ? opt.step : 0.11;
+    const dur  = opt.dur  != null ? opt.dur  : 0.26;
+    const peak = opt.peak != null ? opt.peak : 0.28;
+    const t0 = ctx.currentTime;
+    notes.forEach((f, i) => {
+        try{
+            const osc = ctx.createOscillator();
+            const g   = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = f;
+            osc.connect(g); g.connect(ctx.destination);
+            const t = t0 + i * step;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(peak, t + 0.015);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            osc.start(t);
+            osc.stop(t + dur + 0.04);
+        }catch(e){}
+    });
+}
 function playNotifySound(force){
     if(!data.settings || !data.settings.soundEnabled) return;
-    const now = Date.now(); if(!force && now-lastSoundTime<800) return;
+    const now = Date.now();
+    if(!force && now - lastSoundTime < 800) return;
     lastSoundTime = now;
-    if(data.settings.soundCustom){try{const a=new Audio(data.settings.soundCustom);a.volume=0.85;a.play().catch(()=>{});return;}catch(e){}}
-    const ctx = ensureAudio(); if(!ctx) return;
-    const preset = data.settings.soundPreset || 'ding';
+
+    if(data.settings.soundCustom){
+        try{
+            const a = new Audio(data.settings.soundCustom);
+            a.volume = 0.85;
+            a.play().catch(()=>{});
+            return;
+        }catch(e){}
+    }
+
+    const ctx = ensureAudio();
+    if(!ctx) return;
+
+        const preset = data.settings.soundPreset || 'ding';
     let notes;
-    if(preset==='pop') notes=[660];
-    else if(preset==='bubble') notes=[523.25,659.25,783.99];
-    else if(preset==='soft') notes=[440,554.37];
-    else notes=[880,1174.66];
-    const t0 = ctx.currentTime;
-    notes.forEach((f,i)=>{try{const osc=ctx.createOscillator(),g=ctx.createGain();osc.type='sine';osc.frequency.value=f;osc.connect(g);g.connect(ctx.destination);const t=t0+i*0.11;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.28,t+0.015);g.gain.exponentialRampToValueAtTime(0.0001,t+0.26);osc.start(t);osc.stop(t+0.3);}catch(e){}});
+    if(preset==='bubble') notes=[523.25,659.25,783.99];
+    else if(preset==='soft')   notes=[440,554.37];
+    else                       notes=[880,1174.66];
+    const doPlay = ()=>{ playToneSequence(ctx, notes); };
+    if(ctx.state === 'suspended'){
+        ctx.resume().then(doPlay).catch(()=>{});
+    }else{
+        doPlay();
+    }
 }
 function playCallToneOnce(){
     const preset = data.settings.callSoundPreset || 'ring';
-    const ctx = ensureAudio(); if(!ctx) return;
-    const now = ctx.currentTime;
+    const ctx = ensureAudio();
+    if(!ctx) return;
+
     let notes;
-    if(preset==='pulse') notes=[523.25,659.25];
+    if(preset==='pulse')       notes=[523.25,659.25];
     else if(preset==='gentle') notes=[440,587.33];
     else if(preset==='urgent') notes=[880,880,1174.66];
-    else notes=[880,1046.5];
-    notes.forEach((f,i)=>{try{const osc=ctx.createOscillator(),g=ctx.createGain();osc.type='sine';osc.frequency.value=f;osc.connect(g);g.connect(ctx.destination);const t=now+i*0.18;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.3,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+0.32);osc.start(t);osc.stop(t+0.36);}catch(e){}});
+    else                       notes=[880,1046.5];
+
+    const doPlay = ()=>{ playToneSequence(ctx, notes, {step:0.18, dur:0.32, peak:0.3}); };
+    if(ctx.state === 'suspended'){
+        ctx.resume().then(doPlay).catch(()=>{});
+    }else{
+        doPlay();
+    }
 }
 function startRingTone(){
     if(ringToneTimer || ringToneAudio) return;
     if(!data.settings || data.settings.callSoundEnabled===false) return;
-    if(data.settings.callCustom){try{ringToneAudio=new Audio(data.settings.callCustom);ringToneAudio.loop=true;ringToneAudio.volume=0.9;ringToneAudio.play().catch(()=>{ringToneAudio=null;});return;}catch(e){ringToneAudio=null;}}
+
+    if(data.settings.callCustom){
+        try{
+            const a = new Audio(data.settings.callCustom);
+            a.loop = true;
+            a.volume = 0.9;
+            const p = a.play();
+            if(p && p.catch){
+                p.catch(()=>{
+                    ringToneAudio = null;
+                    try{ playCallToneOnce(); ringToneTimer = setInterval(playCallToneOnce,1100); }catch(e){}
+                });
+            }
+            ringToneAudio = a;
+            return;
+        }catch(e){ ringToneAudio = null; }
+    }
     playCallToneOnce();
     ringToneTimer = setInterval(playCallToneOnce,1100);
 }
-function stopRingTone(){if(ringToneTimer){clearInterval(ringToneTimer);ringToneTimer=null;}if(ringToneAudio){try{ringToneAudio.pause();}catch(e){}ringToneAudio=null;}}
+function stopRingTone(){
+    if(ringToneTimer){ clearInterval(ringToneTimer); ringToneTimer = null; }
+    if(ringToneAudio){ try{ ringToneAudio.pause(); }catch(e){} ringToneAudio = null; }
+}
 function unlockAudioOnce(){
-    ensureAudio();
+    const ctx = ensureAudio();
+    if(!ctx) return;
+
+    // 播一段 1 帧静音，彻底解锁 AudioContext（iOS / 微信必需）
+    try{
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(ctx.destination);
+        src.start(0);
+    }catch(e){}
+
     if(data.settings && data.settings.keepAlive){
         startKeepAliveAudio();
     }
-    document.removeEventListener('touchstart',unlockAudioOnce);
-    document.removeEventListener('click',unlockAudioOnce);
+    document.removeEventListener('touchstart', unlockAudioOnce);
+    document.removeEventListener('click', unlockAudioOnce);
 }
-
 // ======================================================================
 //  PWA 安装 & Service Worker
 // ======================================================================
@@ -1622,7 +1702,7 @@ function renderContacts(){
     list.forEach(c=>{
         const last = getLastMessage(c);
         const timeStr = last ? (isToday(last.timestamp) ? formatTime(last.timestamp) : formatDate(last.timestamp)) : '';
-        const online = c.status === '在线';
+        const online = isStatusOnline(c.status);
         const group = isGroup(c);
         const avatarInner = c.avatar ? `<img src="${c.avatar}" alt="">` : escapeHtml((c.name||'?')[0].toUpperCase());
         const unread = c.unread || 0;
@@ -1685,7 +1765,7 @@ function renderHeader(){
     if(!c) return;
     document.getElementById('headerPartnerName').textContent = c.name || '联系人';
     const dot = document.getElementById('headerStatusDot');
-    dot.className = 'dot' + (c.status==='在线' ? '' : ' offline');
+   dot.className = 'dot' + (isStatusOnline(c.status) ? '' : ' offline');
     document.getElementById('headerStatusText').textContent = c.status || '离线';
     const img = document.getElementById('headerAvatarImg');
     const placeholder = document.getElementById('headerAvatarPlaceholder');
@@ -3628,7 +3708,7 @@ function buildStatusSettingsHtml(){
     const customStatuses = Array.isArray(data.customStatuses) && data.customStatuses.length ? data.customStatuses : def.customStatuses;
     const statusTags = customStatuses.map(x=>`<span class="status-tag">${escapeHtml(x)} <span class="del-status" onclick="removeCustomStatus('${escapeHtml(x).replace(/'/g,"\\'")}')">✕</span></span>`).join('');
     let html = '<div class="plus-body-inner">';
-    html += `<div class="sub-group-title">🔄 随机状态</div><div class="setting-item"><span class="label">随机状态</span><div class="value"><div class="toggle-switch ${s.randomStatus?'active':''}" onclick="toggleRandomStatus()"></div></div></div><div class="setting-sub">开启后，每个联系人会独立随机切换状态</div><div class="sub-group-title">📝 自定义状态池</div><div class="setting-item" style="flex-direction:column;align-items:stretch;"><span class="label">状态池</span><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${statusTags||'<span style="font-size:12px;color:var(--text-light);">暂无</span>'}</div><div style="display:flex;gap:8px;margin-top:10px;"><input id="newStatusInput" placeholder="输入新状态" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);outline:none;"><button class="btn-primary" onclick="addCustomStatus()">添加</button></div></div>`;
+   html += `<div class="sub-group-title">🔄 随机状态</div><div class="setting-item"><span class="label">随机状态</span><div class="value"><div class="toggle-switch ${s.randomStatus?'active':''}" onclick="toggleRandomStatus()"></div></div></div><div class="setting-sub">开启后，每个联系人会独立随机切换状态</div><div class="sub-group-title">📝 自定义状态池</div><div class="setting-item" style="flex-direction:column;align-items:stretch;gap:10px;"><span class="label">状态池</span><div style="display:flex;flex-wrap:wrap;gap:6px;width:100%;box-sizing:border-box;">${statusTags||'<span style="font-size:12px;color:var(--text-light);">暂无</span>'}</div><div style="display:flex;gap:8px;width:100%;box-sizing:border-box;align-items:center;"><input id="newStatusInput" placeholder="输入新状态" style="flex:1;min-width:0;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);outline:none;"><button class="btn-primary" style="flex-shrink:0;white-space:nowrap;padding:8px 16px;" onclick="addCustomStatus()">添加</button></div></div>`;
     html += '</div>';
     return html;
 }
@@ -3702,11 +3782,11 @@ function buildSoundSettingsHtml(){
     try{if('Notification' in window) notifyPerm = Notification.permission;}catch(e){}
     const permText = notifyPerm==='granted'?'已授权 ✅':notifyPerm==='denied'?'已拒绝 ❌':notifyPerm==='unsupported'?'不支持':'未授权（点下方按钮申请）';
     const isPWA = isStandaloneMode();
-    const msgSoundLabel = st.soundCustom?'自定义':(st.soundPreset==='pop'?'泡泡':st.soundPreset==='bubble'?'三连音':st.soundPreset==='soft'?'柔和':'叮咚');
+    const msgSoundLabel = st.soundCustom?'自定义':(st.soundPreset==='bubble'?'三连音':st.soundPreset==='soft'?'柔和':'叮咚');
     const callSoundLabel = st.callCustom?'自定义':(st.callSoundPreset==='pulse'?'脉冲':st.callSoundPreset==='gentle'?'轻柔':st.callSoundPreset==='urgent'?'急促':'铃声');
     let html = '<div class="plus-body-inner">';
     html += `<div class="sub-group-title">💬 消息提示音</div><div class="setting-item"><span class="label">开关</span><div class="value"><div class="toggle-switch ${st.soundEnabled?'active':''}" onclick="toggleMessageSound()"></div></div></div>`;
-    html += `<div class="setting-item"><span class="label">预设</span><div class="value"><select onchange="updateMessageSoundPreset(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;"><option value="ding" ${st.soundPreset==='ding'?'selected':''}>叮咚</option><option value="pop" ${st.soundPreset==='pop'?'selected':''}>泡泡</option><option value="bubble" ${st.soundPreset==='bubble'?'selected':''}>三连音</option><option value="soft" ${st.soundPreset==='soft'?'selected':''}>柔和</option></select><button class="btn-outline" onclick="testSound()">试听</button></div></div>`;
+    html += `<div class="setting-item"><span class="label">预设</span><div class="value"><select onchange="updateMessageSoundPreset(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;"><option value="ding" ${st.soundPreset==='ding'?'selected':''}>叮咚</option><option value="bubble" ${st.soundPreset==='bubble'?'selected':''}>三连音</option><option value="soft" ${st.soundPreset==='soft'?'selected':''}>柔和</option></select><button class="btn-outline" onclick="testSound()">试听</button></div></div>`;
     html += `<div class="setting-item"><span class="label">自定义提示音</span><div class="value"><span style="font-size:12px;color:var(--text-light);">${st.soundCustom?'已上传':'未上传'}</span><button class="btn-outline" onclick="uploadCustomSound('message')">上传</button>${st.soundCustom?'<button class="btn-outline" onclick="clearCustomSound(\'message\')" style="color:#ef4444;border-color:#fecaca;">清除</button>':''}</div></div>`;
     html += `<div class="setting-sub">当前使用：${msgSoundLabel}</div><div class="sub-group-title">📞 通话提示音</div><div class="setting-item"><span class="label">开关</span><div class="value"><div class="toggle-switch ${st.callSoundEnabled!==false?'active':''}" onclick="toggleCallSound()"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">预设</span><div class="value"><select onchange="updateCallSoundPreset(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;"><option value="ring" ${st.callSoundPreset==='ring'?'selected':''}>铃声</option><option value="pulse" ${st.callSoundPreset==='pulse'?'selected':''}>脉冲</option><option value="gentle" ${st.callSoundPreset==='gentle'?'selected':''}>轻柔</option><option value="urgent" ${st.callSoundPreset==='urgent'?'selected':''}>急促</option></select><button class="btn-outline" onclick="testCallSound()">试听</button></div></div>`;
@@ -5491,7 +5571,7 @@ function scheduleSplashHide(){
     const splash = document.getElementById('splash');
     if(!splash) return;
     const img = document.getElementById('splashImg');
-    const fallback = document.getElementById('splashFallback');
+  const fallback = document.querySelector('#splash .splash-fallback');
     let hidden = false;
     const hide = ()=>{ if(hidden) return; hidden = true; splash.classList.add('hide'); };
     const start = Date.now();
