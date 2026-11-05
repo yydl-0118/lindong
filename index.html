@@ -894,12 +894,10 @@ document.addEventListener('visibilitychange', async () => {
     if(document.visibilityState === 'visible'){
         if(data.settings.keepAlive){
             await requestWakeLock();
-            if(keepAliveAudio && keepAliveAudio.paused){
-                keepAliveAudio.play().catch(()=>{});
-            }
+            try{ scheduler.tick(); }catch(e){}
+            if(!_tickWorker){ try{ startTickWorker(); }catch(e){} }
         }
-        // 回到前台立即把通话计时对齐（后台被冻结时的关键补偿）
-                if(callState && callState.active){
+        if(callState && callState.active){
             if(callState.minimized){
                 const mt=document.getElementById('miniTimer');
                 if(mt) mt.textContent=fmtDuration(getCallElapsedSeconds());
@@ -907,9 +905,10 @@ document.addEventListener('visibilitychange', async () => {
                 updateCallTimerDisplay();
             }
         }
+    } else {
+        try{ flushSave(); }catch(e){}
     }
 });
-
 function tryRestoreCall(){
     try{
         const raw = localStorage.getItem('lingdong_call_state');
@@ -938,57 +937,20 @@ function tryRestoreCall(){
 }
 /* ---------- 启动 / 停止 ---------- */
 function startKeepAliveAudio(){
-    if(keepAliveAudio) {
-        if(keepAliveAudio.paused) keepAliveAudio.play().catch(()=>{});
-        return;
-    }
-    try{
-        // 生成 1 秒的极低音量音频（防止被系统判定为静音而挂起）
-        const sr=8000,ns=sr;const buf=new ArrayBuffer(44+ns*2);const v=new DataView(buf);
-        const ws=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
-        ws(0,'RIFF');v.setUint32(4,36+ns*2,true);ws(8,'WAVE');ws(12,'fmt ');v.setUint32(16,16,true);
-        v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);
-        v.setUint16(32,2,true);v.setUint16(34,16,true);ws(36,'data');v.setUint32(40,ns*2,true);
-        
-        const blob=new Blob([buf],{type:'audio/wav'});
-        keepAliveAudio=new Audio(URL.createObjectURL(blob));
-        keepAliveAudio.loop=true;
-        keepAliveAudio.volume=0.001; // 极小音量，不扰民
-        keepAliveAudio.setAttribute('playsinline','');
-        keepAliveAudio.play().catch(()=>{});
-
-        // 让系统把它当成"正在播放的媒体"，提高后台存活率
-        if('mediaSession' in navigator){
-            try{
-                navigator.mediaSession.metadata = new MediaMetadata({
-                    title:'临冬 · 后台保活',
-                    artist:'临冬',
-                    album:'临冬'
-                });
-                navigator.mediaSession.setActionHandler('play', ()=>{});
-                navigator.mediaSession.setActionHandler('pause', ()=>{});
-            }catch(e){}
-        }
-
-        requestWakeLock();
-
-        // 每 5 秒检查一次，防止被系统偷停
-        if(keepAliveTimer) clearInterval(keepAliveTimer);
-        keepAliveTimer = setInterval(() => {
-            if (data.settings.keepAlive && keepAliveAudio && keepAliveAudio.paused) {
-                keepAliveAudio.play().catch(()=>{});
-                requestWakeLock();
-            }
-        }, 5000);
-    }catch(e){}
+    // ✅ 不再使用任何音频，避免抢占音频焦点
+    try{ startTickWorker(); }catch(e){}
+    requestWakeLock();
+    if(keepAliveTimer) clearInterval(keepAliveTimer);
+    keepAliveTimer = setInterval(() => {
+        if(!data.settings.keepAlive) return;
+        if(!_tickWorker){ try{ startTickWorker(); }catch(e){} }
+        if(!wakeLock && document.visibilityState === 'visible'){ requestWakeLock(); }
+    }, 15000);
 }
-
 function stopKeepAliveAudio(){
-    if(keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
-    if(keepAliveAudio){ try{ keepAliveAudio.pause(); }catch(e){} keepAliveAudio = null; }
+    if(keepAliveTimer){ clearInterval(keepAliveTimer); keepAliveTimer = null; }
     releaseWakeLock();
 }
-
 // ======================================================================
 //  存储
 // ======================================================================
@@ -1311,10 +1273,12 @@ const scheduler = {
 },
 };
 let _tickWorker = null;
+let _mainTickStarted = false;
 function startTickWorker(){
-    // 主线程保底（前台时用）
-    setInterval(()=>{ try{scheduler.tick();}catch(e){} }, 1000);
-    // Worker 驱动（后台节流轻，是主力）
+    if(!_mainTickStarted){
+        _mainTickStarted = true;
+        setInterval(()=>{ try{scheduler.tick();}catch(e){} }, 1000);
+    }
     try{
         if(!_tickWorker && window.Worker){
             const code = 'let i=0;setInterval(function(){i=(i+1)%1e9;postMessage(i);},1000);';
@@ -1328,10 +1292,14 @@ function startTickWorker(){
                     if(ctx && ctx.state === 'suspended'){ ctx.resume().catch(()=>{}); }
                 } catch(e){}
             };
+            _tickWorker.onerror = () => {
+                try{ _tickWorker.terminate(); }catch(e){}
+                _tickWorker = null;
+                setTimeout(()=>{ try{ startTickWorker(); }catch(e){} }, 3000);
+            };
         }
     }catch(e){}
 }
-
 // ======================================================================
 //  音频
 // ======================================================================
@@ -3751,7 +3719,7 @@ function buildSoundSettingsHtml(){
     html += `<div class="setting-item"><span class="label">运行模式：${isPWA?'桌面模式 ✅':'浏览器标签页'}</span><div class="value">${isPWA?'<span style="font-size:12px;color:var(--text-light);">已安装</span>':'<button class="btn-primary" onclick="installPWA()" style="padding:6px 14px;font-size:13px;">📲 安装到桌面</button>'}</div></div>`;
     html += `<div class="setting-sub" style="background:rgba(74,144,217,.08);padding:10px 12px;border-radius:10px;margin-top:6px;line-height:1.7;">💡 安装与后台弹窗要点：<br>① <b>Chrome</b>：点击地址栏右侧的安装图标 ⊕，或 ⋮ 菜单 → <b>添加到主屏幕</b> / 安装应用（名称不同但效果一样）；<br>② <b>Edge</b>：点击右上角 ··· → 应用 → 安装此站点为应用；<br>③ <b>iOS Safari</b>：点击分享按钮 → <b>添加到主屏幕</b>；<br>④ 安装后点击「申请权限」允许通知；<br>⑤ 保持「后台保活」开启，最小化窗口后仍能收到消息通知。</div>`;
     html += `<div style="padding:0 4px;margin-top:8px;"><button class="btn-outline" style="width:100%;justify-content:center;" onclick="testBackgroundNotification()">🔔 测试后台通知（5秒后发送，请立即切后台）</button></div>`;
-    html += `<div class="setting-sub" style="background:rgba(74,144,217,.08);padding:10px 12px;border-radius:10px;margin:8px 0 6px;line-height:1.7;">💡 后台保活采用「无声音」方式（Wake Lock + 静音振荡器），不会抢占其他 App 的音频焦点，刷视频/听音乐时音量不会被压低。</div>`;
+    html += `<div class="setting-sub" style="background:rgba(74,144,217,.08);padding:10px 12px;border-radius:10px;margin:8px 0 6px;line-height:1.7;">💡 后台保活采用「Worker 心跳 + 屏幕唤醒锁」，<b>完全不使用任何音频</b>，听歌 / 刷视频时音量不会被压低。<br>后台消息最多延迟约 1 分钟（浏览器对后台页面的节流策略）。</div>`;
 html += `<div class="setting-item" style="margin-top:10px;"><span class="label">后台保活</span><div class="value"><div class="toggle-switch ${st.keepAlive?'active':''}" onclick="toggleSetting('keepAlive')"></div></div></div>`;
     html += '</div>';
     return html;
@@ -4307,17 +4275,13 @@ function getMusicAudio(){
               musicAudio.addEventListener('play',()=>{
             if(data.music){data.music.playing=true;saveData();}
             updateMusicPlayUI();updateMusicBottomBar();
-            // 音乐播放时停掉静音振荡器，让音乐独占音频通道
-            if(keepAliveAudio){ try{ keepAliveAudio.pause(); }catch(e){} }
-        });
+                  });
         musicAudio.addEventListener('pause',()=>{
-            if(data.music){data.music.playing=false;saveData();}
-            updateMusicPlayUI();updateMusicBottomBar();
-            if(pauseGuardToken>0)return;
-            if(data.music&&data.music.controlAllowed){data.music.controlAllowed=false;saveData();showToast('⏸ 已暂停播放，对方的切歌/暂停权限已收回');}
-            // 音乐暂停后，若保活开启则恢复静音振荡器
-           if(data.settings && data.settings.keepAlive && keepAliveAudio){ keepAliveAudio.play().catch(()=>{}); }
-        });
+    if(data.music){data.music.playing=false;saveData();}
+    updateMusicPlayUI();updateMusicBottomBar();
+    if(pauseGuardToken>0)return;
+    if(data.music&&data.music.controlAllowed){data.music.controlAllowed=false;saveData();showToast('⏸ 已暂停播放，对方的切歌/暂停权限已收回');}
+});
         musicAudio.addEventListener('error',()=>showToast('⚠️ 音频加载失败，链接可能不可用'));
     }
     return musicAudio;
