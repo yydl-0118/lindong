@@ -873,11 +873,17 @@ let _wcBatchSelected = new Set();
 let _wcBatchGroupId = null;
 async function requestWakeLock(){
     try{
-        if('wakeLock' in navigator){
-            wakeLock = await navigator.wakeLock.request('screen');
-            if(wakeLock.addEventListener){
-                wakeLock.addEventListener('release', ()=>{ wakeLock = null; });
-            }
+        if(!('wakeLock' in navigator)) return;
+        if(document.visibilityState !== 'visible') return;
+        if(wakeLock) return;
+        wakeLock = await navigator.wakeLock.request('screen');
+        if(wakeLock.addEventListener){
+            wakeLock.addEventListener('release', ()=>{
+                wakeLock = null;
+                if(data.settings.keepAlive && document.visibilityState === 'visible'){
+                    setTimeout(()=>{ requestWakeLock(); }, 1000);
+                }
+            });
         }
     }catch(e){}
 }
@@ -885,10 +891,51 @@ function releaseWakeLock(){
     if(wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock = null; }
 }
 document.addEventListener('visibilitychange', async () => {
-    if(document.visibilityState === 'visible' && data.settings.keepAlive){
-        await requestWakeLock();
+    if(document.visibilityState === 'visible'){
+        if(data.settings.keepAlive){
+            await requestWakeLock();
+            if(keepAliveAudio && keepAliveAudio.paused){
+                keepAliveAudio.play().catch(()=>{});
+            }
+        }
+        // 回到前台立即把通话计时对齐（后台被冻结时的关键补偿）
+                if(callState && callState.active){
+            if(callState.minimized){
+                const mt=document.getElementById('miniTimer');
+                if(mt) mt.textContent=fmtDuration(getCallElapsedSeconds());
+            }else{
+                updateCallTimerDisplay();
+            }
+        }
     }
 });
+
+function tryRestoreCall(){
+    try{
+        const raw = localStorage.getItem('lingdong_call_state');
+        if(!raw) return;
+        const s = JSON.parse(raw);
+        if(!s.answeredAt || Date.now() - s.answeredAt > 2*3600*1000){
+            localStorage.removeItem('lingdong_call_state'); return;
+        }
+        if(!getContact(s.contactId)){
+            localStorage.removeItem('lingdong_call_state'); return;
+        }
+        data.activeContactId = s.contactId;
+        callState = {
+            active:true, minimized:true, isOutgoing:!!s.isOutgoing, answered:true,
+            seconds:0, answeredAt:s.answeredAt,
+            ringLeft:0, ringDeadline:0,
+            ringId:null, timerId:null, timeoutId:null, countdownId:null,
+            contactId:s.contactId
+        };
+        callState.timerId = setInterval(updateCallTimerDisplay, 1000);
+        updateCallTimerDisplay();
+        const mini=document.getElementById('callMini');
+        if(mini) mini.style.display='flex';
+        showToast('📞 已恢复通话计时');
+    }catch(e){}
+}
 /* ---------- 启动 / 停止 ---------- */
 function startKeepAliveAudio(){
     if(keepAliveAudio) {
@@ -907,18 +954,32 @@ function startKeepAliveAudio(){
         keepAliveAudio=new Audio(URL.createObjectURL(blob));
         keepAliveAudio.loop=true;
         keepAliveAudio.volume=0.001; // 极小音量，不扰民
+        keepAliveAudio.setAttribute('playsinline','');
         keepAliveAudio.play().catch(()=>{});
-        
+
+        // 让系统把它当成"正在播放的媒体"，提高后台存活率
+        if('mediaSession' in navigator){
+            try{
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title:'临冬 · 后台保活',
+                    artist:'临冬',
+                    album:'临冬'
+                });
+                navigator.mediaSession.setActionHandler('play', ()=>{});
+                navigator.mediaSession.setActionHandler('pause', ()=>{});
+            }catch(e){}
+        }
+
         requestWakeLock();
 
-        // 【核心】每 10 秒检查一次，防止被系统偷停
+        // 每 5 秒检查一次，防止被系统偷停
         if(keepAliveTimer) clearInterval(keepAliveTimer);
         keepAliveTimer = setInterval(() => {
             if (data.settings.keepAlive && keepAliveAudio && keepAliveAudio.paused) {
                 keepAliveAudio.play().catch(()=>{});
                 requestWakeLock();
             }
-        }, 10000);
+        }, 5000);
     }catch(e){}
 }
 
@@ -3973,6 +4034,23 @@ function sendPartnerAutoMessage(contactId){
 //  通话
 // ======================================================================
 const CALL_RING_TIMEOUT=30;
+// 基于时间戳计算已通话秒数——不受后台节流影响
+function getCallElapsedSeconds(){
+    if(!callState || !callState.answeredAt) return 0;
+    return Math.max(0, Math.floor((Date.now() - callState.answeredAt) / 1000));
+}
+
+// 刷新通话计时显示（定时器和可见性恢复共用）
+function updateCallTimerDisplay(){
+    if(!callState || !callState.active || !callState.answered) return;
+    const s = getCallElapsedSeconds();
+    callState.seconds = s;
+    const d = fmtDuration(s);
+    const t = document.getElementById('callTimer');
+    if(t) t.textContent = d;
+    const mt = document.getElementById('miniTimer');
+    if(mt) mt.textContent = d;
+}
 function renderCallBox(){
     const c=document.getElementById('modalContainer');if(!c)return;
     const contact = (callState && callState.contactId) ? getContact(callState.contactId) : getActiveContact();
@@ -3980,7 +4058,7 @@ if(!contact) return;
     const name=contact.name||'对方';const avatar=contact.avatar||'';
     const avatarHtml=avatar?`<img src="${escapeHtml(avatar)}" alt="avatar">`:`<div class="placeholder">${escapeHtml((name||'?')[0].toUpperCase())}</div>`;
     const st=callState;
-    let statusText='',countdownText='',timerText=fmtDuration(st.seconds);
+        let statusText='',countdownText='',timerText=fmtDuration(getCallElapsedSeconds());
     if(st.answered)statusText='通话中';
     else if(st.isOutgoing)statusText='📞 呼叫中...';
     else{statusText='📞 来电...';countdownText=`响铃中 · ${st.ringLeft} 秒后未接自动挂断`;}
@@ -3991,13 +4069,23 @@ function showCallModal(isOutgoing){
     const c=getActiveContact();if(!c){showToast('请先进入聊天');return;}
     if(isGroup(c)){showToast('群聊暂不支持通话');return;}
     if(callState&&callState.active){restoreCall();return;}
-    callState={active:true,minimized:false,isOutgoing:!!isOutgoing,answered:false,seconds:0,ringLeft:CALL_RING_TIMEOUT,ringId:null,timerId:null,timeoutId:null,countdownId:null,contactId:c.id};
+    callState={active:true,minimized:false,isOutgoing:!!isOutgoing,answered:false,seconds:0,answeredAt:0,
+        ringLeft:CALL_RING_TIMEOUT,ringDeadline:Date.now()+CALL_RING_TIMEOUT*1000,
+        ringId:null,timerId:null,timeoutId:null,countdownId:null,contactId:c.id};
     resetCallMiniPosition();renderCallBox();
     const mini=document.getElementById('callMini');if(mini)mini.style.display='none';
     if(!isOutgoing){
         startRingTone();showSystemNotification({content:`📞 ${c.name||'对方'} 给你打电话`,type:'call'},false,c.id);
         try{if(navigator.vibrate)navigator.vibrate([300,150,300,150,300]);}catch(e){}
-        callState.countdownId=setInterval(()=>{if(!callState||!callState.active)return;if(callState.answered)return;callState.ringLeft--;const el=document.getElementById('callCountdown');if(el)el.textContent=`响铃中 · ${callState.ringLeft} 秒后未接自动挂断`;if(callState.ringLeft<=0)endCall('missed');},1000);
+                callState.countdownId=setInterval(()=>{
+            if(!callState||!callState.active)return;
+            if(callState.answered)return;
+            const left = Math.max(0, Math.ceil((callState.ringDeadline - Date.now())/1000));
+            callState.ringLeft = left;
+            const el=document.getElementById('callCountdown');
+            if(el) el.textContent=`响铃中 · ${left} 秒后未接自动挂断`;
+            if(left<=0) endCall('missed');
+        },1000);
     }else{
         const willAnswer=Math.random()>0.25;
         if(willAnswer)setTimeout(()=>{if(callState&&callState.active&&!callState.answered)answerCall();},2000+Math.random()*3000);
@@ -4007,14 +4095,24 @@ function showCallModal(isOutgoing){
 }
 function answerCall(){
     if(!callState||callState.answered)return;
-    callState.answered=true;stopRingTone();
+    callState.answered=true;
+    callState.answeredAt=Date.now();
+    stopRingTone();
     if(callState.ringId)clearInterval(callState.ringId);
     if(callState.timeoutId)clearTimeout(callState.timeoutId);
     if(callState.countdownId)clearInterval(callState.countdownId);
     const st=document.getElementById('callStatus');if(st)st.textContent='通话中';
     const cd=document.getElementById('callCountdown');if(cd)cd.textContent='';
     callState.seconds=0;
-    callState.timerId=setInterval(()=>{if(!callState)return;callState.seconds++;const d=fmtDuration(callState.seconds);const t=document.getElementById('callTimer');if(t)t.textContent=d;const mt=document.getElementById('miniTimer');if(mt)mt.textContent=d;},1000);
+    try{
+        localStorage.setItem('lingdong_call_state', JSON.stringify({
+            contactId: callState.contactId,
+            answeredAt: callState.answeredAt,
+            isOutgoing: callState.isOutgoing
+        }));
+    }catch(e){}
+    callState.timerId=setInterval(updateCallTimerDisplay,1000);
+    updateCallTimerDisplay();
     showToast('📞 已接通');
 }
 function endCall(reason){
@@ -4025,7 +4123,8 @@ function endCall(reason){
     if(callState.timerId)clearInterval(callState.timerId);
     if(callState.timeoutId)clearTimeout(callState.timeoutId);
     if(callState.countdownId)clearInterval(callState.countdownId);
-    const dur=callState.seconds,isOut=callState.isOutgoing,answered=callState.answered;
+     const dur = callState.answered ? getCallElapsedSeconds() : 0;
+    const isOut = callState.isOutgoing, answered = callState.answered;
     const cid = callState.contactId || null;
     let content='',shouldRecord=true;
     if(isOut){
@@ -4039,12 +4138,19 @@ function endCall(reason){
     }
     if(shouldRecord&&content)addMessage(isOut?'me':'partner',content,'call',null,true,false,'',cid);
     const toastMsg=reason==='rejected'?'📞 对方拒接':reason==='missed'?'📞 未接听':answered?'📞 通话结束':'';
+       try{ localStorage.removeItem('lingdong_call_state'); }catch(e){}
     callState.active=false;callState=null;
     const c=document.getElementById('modalContainer');if(c)c.innerHTML='';
     const mini=document.getElementById('callMini');if(mini)mini.style.display='none';
     if(toastMsg)showToast(toastMsg);
 }
-function minimizeCall(){if(!callState)return;callState.minimized=true;const c=document.getElementById('modalContainer');if(c)c.innerHTML='';const mini=document.getElementById('callMini');if(mini)mini.style.display='flex';const mt=document.getElementById('miniTimer');if(mt)mt.textContent=fmtDuration(callState.seconds);}
+function minimizeCall(){
+    if(!callState)return;
+    callState.minimized=true;
+    const c=document.getElementById('modalContainer');if(c)c.innerHTML='';
+    const mini=document.getElementById('callMini');if(mini)mini.style.display='flex';
+    const mt=document.getElementById('miniTimer');if(mt)mt.textContent=fmtDuration(getCallElapsedSeconds());
+}
 function restoreCall(){if(!callState)return;callState.minimized=false;renderCallBox();const mini=document.getElementById('callMini');if(mini)mini.style.display='none';}
 function initCallMiniDrag(){
     const mini=document.getElementById('callMini');if(!mini)return;
@@ -5477,7 +5583,8 @@ async function init(){
     try{renderMessagesNow();}catch(e){}
     try{initCallMiniDrag();}catch(e){}
     try{updateLetterMenuDot();}catch(e){}
-    try{updateNavBadge();}catch(e){}
+      try{updateNavBadge();}catch(e){}
+    try{tryRestoreCall();}catch(e){}
     try{setupBackGuard();}catch(e){}
     try{restoreMuteTimers();}catch(e){}
     try{setupKeyboardViewportFix();}catch(e){}
