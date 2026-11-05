@@ -131,11 +131,13 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 }
 .msg-group.msg-highlight .msg-bubble{animation:msgFlash 1.6s ease;}
 .msg-system-center.msg-highlight span{background:var(--primary)!important;color:#fff!important;}
-
-.msg-bubble .msg-actions{display:none;gap:8px;margin-top:6px;justify-content:flex-end;flex-wrap:wrap}
-.msg-group.me .msg-bubble .msg-actions{justify-content:flex-start}
-.msg-bubble .msg-actions button{background:none;border:none;font-size:13px;color:var(--text-light);padding:2px 6px;border-radius:4px;cursor:pointer;font-family:inherit}
-.msg-bubble:hover .msg-actions{display:flex}
+/* ===== 消息操作条（气泡上方） ===== */
+.msg-actions-bar{display:none;gap:2px;margin-bottom:4px;flex-wrap:wrap;background:rgba(0,0,0,.05);border-radius:10px;padding:2px 4px;max-width:100%;}
+.msg-actions-bar.show{display:flex;}
+.msg-group.other .msg-actions-bar{align-self:flex-start;}
+.msg-group.me .msg-actions-bar{align-self:flex-end;}
+.msg-actions-bar button{background:none;border:none;font-size:12px;color:var(--text-light);padding:4px 8px;border-radius:8px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.msg-actions-bar button:active{background:rgba(0,0,0,.08);}
 .msg-time-divider{text-align:center;font-size:11px;color:var(--text-light);padding:6px 0 2px;opacity:.7}
 .msg-time-divider span{background:rgba(0,0,0,.06);padding:2px 10px;border-radius:10px}
 .msg-system-center{text-align:center;padding:2px 0;width:100%;align-self:center;animation:msgIn .22s ease}
@@ -1187,6 +1189,9 @@ function initDataFields(){
         if(!Array.isArray(c.members)) c.members = [];
         if(typeof c.bgImage !== 'string') c.bgImage = '';
         if(typeof c.unread !== 'number' || isNaN(c.unread) || c.unread < 0) c.unread = 0;
+        if(typeof c.myAvatar !== 'string') c.myAvatar = '';
+        if(!c.bubbleSettings || typeof c.bubbleSettings !== 'object') c.bubbleSettings = null;
+        if(typeof c.blocked !== 'boolean') c.blocked = false;
         if(c.type === 'group'){
             if(!Array.isArray(c.admins)) c.admins = [];
             if(!c.mutedUntil || typeof c.mutedUntil !== 'object') c.mutedUntil = {};
@@ -1534,6 +1539,10 @@ document.addEventListener('click',function(e){
     if(mp && mp.classList.contains('open')){
         if(!mp.contains(e.target) && !e.target.closest('.footer-main')) closeMorePanel();
     }
+    const tgt = e.target;
+    if(tgt && tgt.closest && !tgt.closest('.msg-bubble') && !tgt.closest('.msg-actions-bar')){
+        document.querySelectorAll('.msg-actions-bar.show').forEach(x=>x.classList.remove('show'));
+    }
 },false);
 
 // ======================================================================
@@ -1555,6 +1564,7 @@ function switchPage(page){
     if(page === 'settings') renderSettingsPage();
     const navMap = {contacts:'contacts',chat:'contacts',chatinfo:'contacts',tools:'tools',settings:'settings'};
     document.querySelectorAll('#bottom-nav .nav-item').forEach(item=>{item.classList.toggle('active', item.dataset.page === navMap[page]);});
+       applyCustomCSS();
 }
 function switchToolTab(tab){
     document.querySelectorAll('.tool-tabs .tab').forEach(t=>t.classList.toggle('active', t.dataset.tab === tab));
@@ -1681,9 +1691,11 @@ function renderHeader(){
 //  消息渲染
 // ======================================================================
 function avatarHtmlFor(sender, senderId, senderName){
-    if(sender === 'me'){
+        if(sender === 'me'){
         const u = data.user;
-        if(u.avatar) return `<img src="${escapeHtml(u.avatar)}" alt="">`;
+        const c = getActiveContact();
+        const myAv = (c && c.myAvatar) ? c.myAvatar : (u.avatar || '');
+        if(myAv) return `<img src="${escapeHtml(myAv)}" alt="">`;
         return escapeHtml(((u.name||'我')[0]).toUpperCase());
     }
     const c = getActiveContact();
@@ -1734,6 +1746,7 @@ function buildMessageHtml(m,msgs){
     }
     if(m.type === 'call') return `<div class="msg-system-center" data-id="${m.id}"><span><span class="sys-icon">📞</span>${escapeHtml(m.content)}</span></div>`;
     if(m.type === 'readno') return `<div class="msg-system-center" data-id="${m.id}"><span><span class="sys-icon">👀</span>${escapeHtml(m.content)}</span></div>`;
+    if(m.type === 'block') return `<div class="msg-system-center" data-id="${m.id}"><span><span class="sys-icon">🚫</span>${escapeHtml(m.content)}</span></div>`;
 
     if(m.type === 'recall'){
         const hasRecalled = (m.recalledType==='image'||m.recalledType==='emoji'||typeof m.recalledContent==='string') && (m.recalledContent!==undefined && m.recalledContent!==null);
@@ -1755,8 +1768,7 @@ function buildMessageHtml(m,msgs){
     const timeStr = formatTime(m.timestamp);
     const showAvatar = data.settings && data.settings.showAvatar !== false;
     let contentHtml = '', replyHtml = '', hasReply = false;
-
-    /* ===== 引用消息：可点击跳转到被引用的原消息 ===== */
+         /* ===== 引用消息：可点击跳转到被引用的原消息 ===== */
     if(m.replyTo){
         const ref = msgs.find(x=>x.id===m.replyTo);
         if(ref){
@@ -1782,19 +1794,25 @@ function buildMessageHtml(m,msgs){
     const autoBadge = (m.isAuto && !isMe) ? '<span class="auto-badge">❤️</span>' : '';
     const avatarHtml = showAvatar ? `<div class="msg-avatar">${avatarHtmlFor(m.sender, m.senderId, m.senderName)}</div>` : '';
     const sideHtml = `<div class="msg-side">${avatarHtml}<span class="msg-side-time">${timeStr}</span></div>`;
-
     const canRecall = isMe && (m.type==='text' || m.type==='emoji' || m.type==='image');
-    let actionsHtml = '<div class="msg-actions">';
+    let actionsHtml = `<div class="msg-actions-bar" data-actions-for="${m.id}">`;
     if(canRecall){
         actionsHtml += `<button onclick="event.stopPropagation();recallMyMessage('${m.id}')">↩ 撤回</button>`;
     }
     actionsHtml += `<button onclick="event.stopPropagation();replyToMessage('${m.id}')">💬 引用</button>`;
     actionsHtml += `<button onclick="event.stopPropagation();deleteMessage('${m.id}')">🗑 删除</button></div>`;
 
-    return `<div class="msg-group ${groupClass}" data-id="${m.id}">${sideHtml}<div class="msg-body"><div class="${bubbleClass}" onclick="onBubbleClick('${m.id}')">${autoBadge}${contentHtml}${actionsHtml}</div></div></div>`;
+    return `<div class="msg-group ${groupClass}" data-id="${m.id}">${sideHtml}<div class="msg-body">${actionsHtml}<div class="${bubbleClass}" onclick="toggleMsgActions(event,'${m.id}')">${autoBadge}${contentHtml}</div></div></div>`;
 }
-
-/* ===== 点击引用 → 跳转到被引用的消息 ===== */
+    /* ===== 点击引用 → 跳转到被引用的消息 ===== */
+function toggleMsgActions(e,id){
+    if(e) e.stopPropagation();
+    const bar = document.querySelector(`.msg-actions-bar[data-actions-for="${id}"]`);
+    if(!bar) return;
+    const isOpen = bar.classList.contains('show');
+    document.querySelectorAll('.msg-actions-bar.show').forEach(x=>x.classList.remove('show'));
+    if(!isOpen) bar.classList.add('show');
+}
 function jumpToMessage(e, refId){
     if(e){ e.stopPropagation(); e.preventDefault(); }
     const c = getActiveContact(); if(!c) return;
@@ -1857,11 +1875,12 @@ function toggleRecallMessage(el, msgId){
 function renderMessagesNow(){
     const area = document.getElementById('message-area');
     const c = getActiveContact();
-    if(!c){ area.style.backgroundImage = 'none'; area.innerHTML = ''; return; }
+    if(!c){ area.style.backgroundImage = 'none'; area.innerHTML = ''; applyChatBubbleVars(null); return; }
     const bg = c.bgImage || '';
     area.style.backgroundImage = bg ? `url(${bg})` : 'none';
+    applyChatBubbleVars(c);
     const msgs = c.messages || [];
-    if(msgs.length === 0){
+if(msgs.length === 0){
         area.innerHTML = '<div class="empty-state" style="padding-top:60px;"><div class="empty-icon">💬</div><div>还没有消息，开始聊天吧</div></div>';
         if(typingContacts.has(c.id)) showTypingIndicator(c.id);
         return;
@@ -1940,6 +1959,7 @@ function addMessage(sender,content,type,replyTo,silent,isAuto,senderName,contact
     }
 
     const msgType = type || 'text';
+    if(sender === 'partner' && c.blocked) return null;
 
     if(sender === 'partner' && isGroup(c) && (msgType === 'text' || msgType === 'emoji' || msgType === 'image')){
         let targetMember = null;
@@ -1999,7 +2019,8 @@ function sendMessage(){
     const input = document.getElementById('msgInput');
     const text = input.value.trim(); if(!text) return;
     input.value = ''; input.style.height = 'auto';
-    addMessage('me',text,'text',currentReplyTarget||null);
+        addMessage('me',text,'text',currentReplyTarget||null);
+    if(c.blocked) notifyBlockedOnSend(c);
     cancelReply();
     showTypingIndicator(c.id);
     scrollToBottomIfNear(150);
@@ -2007,12 +2028,14 @@ function sendMessage(){
 }
 function addEmojiMessage(dataUrl){
     const c = getActiveContact(); if(!c) return;
-    addMessage('me',dataUrl,'emoji',currentReplyTarget||null);
-    cancelReply(); showTypingIndicator(c.id); scrollToBottomIfNear(150); schedulePartnerReply();
+        addMessage('me',dataUrl,'emoji',currentReplyTarget||null);
+    if(c.blocked) notifyBlockedOnSend(c);
+    cancelReply();showTypingIndicator(c.id); scrollToBottomIfNear(150); schedulePartnerReply();
 }
 function addImageMessage(dataUrl){
     const c = getActiveContact(); if(!c) return;
-    addMessage('me',dataUrl,'image',currentReplyTarget||null);
+        addMessage('me',dataUrl,'image',currentReplyTarget||null);
+    if(c.blocked) notifyBlockedOnSend(c);
     cancelReply(); showTypingIndicator(c.id); scrollToBottomIfNear(150); schedulePartnerReply();
 }
 function addPatMessage(sender,content){return addMessage(sender,content,'pat',null,false,false);}
@@ -2079,7 +2102,8 @@ function getAllCards(){
     return all;
 }
 function schedulePartnerReply(){
-    const c = getActiveContact(); if(!c) return;
+    const c = getActiveContact();
+    if(!c || c.blocked){ if(c) hideTypingIndicator(c.id); return; }
     if(replyTimers[c.id]){clearTimeout(replyTimers[c.id]);delete replyTimers[c.id];}
     const s = data.replySettings;
     let minS = Number(s.minSeconds), maxS = Number(s.maxSeconds);
@@ -2168,7 +2192,7 @@ function schedulePartnerRecall(msgId, contactId){
 function generatePartnerReply(contactId){
     hideTypingIndicator(contactId);
     const c = contactId ? getContact(contactId) : getActiveContact();
-    if(!c) return;
+    if(!c || c.blocked) return;
     const s = data.replySettings;
     const now = Date.now();
     const senders = isGroup(c)
@@ -2272,7 +2296,7 @@ function maybePat(contactId){
         if(!contents.length) return;
         const content = contents[Math.floor(Math.random()*contents.length)];
         const c = contactId ? getContact(contactId) : getActiveContact();
-        if(!c) return;
+              if(!c || c.blocked) return;
 
         let senderName = c.name || '对方';
         let senderId = '';
@@ -2290,6 +2314,7 @@ function maybePat(contactId){
     }
 }
 function maybeCall(){
+    const ac = getActiveContact(); if(ac && ac.blocked) return;
     const prob = Number(data.replySettings.callProbability);
     if(isNaN(prob)) return;
     if(Math.random() < prob) setTimeout(()=>{ if(!callState) showCallModal(false); }, 1500+Math.random()*2500);
@@ -2424,6 +2449,10 @@ function renderChatInfo(){
     const avatarInner = c.avatar ? `<img src="${c.avatar}" style="width:100%;height:100%;object-fit:cover;display:block;">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:#fff;background:var(--primary);">${escapeHtml((c.name||'?')[0].toUpperCase())}</div>`;
     const bg = c.bgImage || '';
     const bgStyle = bg ? `background-image:url(${bg});` : '';
+    const myAv = c.myAvatar || (data.user.avatar || '');
+    const myAvInner = myAv
+        ? `<img src="${myAv}" style="width:100%;height:100%;object-fit:cover;display:block;">`
+        : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:#fff;background:var(--primary);">${escapeHtml(((data.user.name||'我')[0]).toUpperCase())}</div>`;
     let memberHtml = '';
     if(group){
         let items = '';
@@ -2444,7 +2473,7 @@ function renderChatInfo(){
         const ga = c.groupAuto || {enabled:false, minMinutes:5, maxMinutes:30, minCount:1, maxCount:3};
         groupAutoHtml = `<div class="sub-group-title">💬 群成员主动发消息</div><div class="setting-item"><span class="label">主动发消息开关</span><div class="value"><div class="toggle-switch ${ga.enabled?'active':''}" onclick="toggleGroupAuto()"></div></div></div><div class="setting-item"><span class="label">最少发信息时间</span><div class="value"><input type="number" value="${ga.minMinutes}" min="0.1" max="1440" step="0.5" onchange="updateGroupAutoField('minMinutes', this.value)" style="width:70px;"><span style="font-size:12px;">分钟</span></div></div><div class="setting-item"><span class="label">最多发信息时间</span><div class="value"><input type="number" value="${ga.maxMinutes}" min="0.1" max="1440" step="0.5" onchange="updateGroupAutoField('maxMinutes', this.value)" style="width:70px;"><span style="font-size:12px;">分钟</span></div></div><div class="setting-item"><span class="label">发信息条数</span><div class="value"><input type="number" value="${ga.minCount}" min="1" max="20" step="1" onchange="updateGroupAutoField('minCount', this.value)" style="width:55px;"><span style="font-size:12px;">~</span><input type="number" value="${ga.maxCount}" min="1" max="20" step="1" onchange="updateGroupAutoField('maxCount', this.value)" style="width:55px;"><span style="font-size:12px;">条</span></div></div><div class="setting-sub">群聊的主动发消息与「我」中的主动发消息相互独立</div>`;
     }
-    body.innerHTML = `<div class="setting-section"><div class="sub-group-title">${group?'👥 群聊信息':'👤 联系人信息'}</div><div class="setting-item" style="cursor:pointer;" onclick="changeContactAvatar()"><span class="label">${group?'群聊头像':'人物头像'}</span><div class="value"><div style="width:52px;height:52px;border-radius:12px;overflow:hidden;background:var(--border);flex-shrink:0;">${avatarInner}</div><span class="edit-trigger">修改 ›</span></div></div><div class="setting-item" style="cursor:pointer;" onclick="editContactName()"><span class="label">${group?'群聊名称':'联系人名字'}</span><div class="value"><span style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.name)}</span><span class="edit-trigger">修改 ›</span></div></div>${memberHtml}${groupAutoHtml}<div class="setting-item"><span class="label">聊天背景图</span><div class="value"><div class="bg-preview" style="width:52px;height:52px;${bgStyle}"></div><button class="btn-outline" onclick="uploadContactBg()">上传</button><button class="btn-outline" onclick="removeContactBg()">清除</button></div></div><div style="margin-top:20px;"><button class="btn-danger" style="width:100%;padding:13px;font-size:15px;border-radius:var(--radius-sm);" onclick="deleteActiveContact()">删除${group?'群聊':'联系人'}</button></div></div>`;
+       body.innerHTML = `<div class="setting-section"><div class="sub-group-title">${group?'👥 群聊信息':'👤 联系人信息'}</div><div class="setting-item" style="cursor:pointer;" onclick="changeContactAvatar()"><span class="label">${group?'群聊头像':'人物头像'}</span><div class="value"><div style="width:52px;height:52px;border-radius:12px;overflow:hidden;background:var(--border);flex-shrink:0;">${avatarInner}</div><span class="edit-trigger">修改 ›</span></div></div><div class="setting-item" style="cursor:pointer;" onclick="editContactName()"><span class="label">${group?'群聊名称':'联系人名字'}</span><div class="value"><span style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.name)}</span><span class="edit-trigger">修改 ›</span></div></div><div class="setting-item" style="cursor:pointer;" onclick="changeMyChatAvatar()"><span class="label">我方头像${c.myAvatar?'':'（跟随全局）'}</span><div class="value"><div style="width:52px;height:52px;border-radius:12px;overflow:hidden;background:var(--border);flex-shrink:0;">${myAvInner}</div>${c.myAvatar?'<button class="btn-outline" onclick="event.stopPropagation();resetMyChatAvatar()">恢复全局</button>':''}<span class="edit-trigger">修改 ›</span></div></div>${memberHtml}${groupAutoHtml}<div class="setting-item"><span class="label">聊天背景图</span><div class="value"><div class="bg-preview" style="width:52px;height:52px;${bgStyle}"></div><button class="btn-outline" onclick="uploadContactBg()">上传</button><button class="btn-outline" onclick="removeContactBg()">清除</button></div></div><div class="setting-item" style="cursor:pointer;" onclick="openBubbleSettings()"><span class="label">气泡设置</span><div class="value"><span style="font-size:12px;color:var(--text-light);">${c.bubbleSettings?'已自定义':'跟随全局'}</span><span class="edit-trigger">设置 ›</span></div></div><div class="setting-item"><span class="label">拉黑${group?'群聊':'联系人'}</span><div class="value"><button class="${c.blocked?'btn-danger':'btn-outline'}" onclick="toggleBlockContact()">${c.blocked?'解除拉黑':'拉黑'}</button></div></div><div style="margin-top:20px;"><button class="btn-danger" style="width:100%;padding:13px;font-size:15px;border-radius:var(--radius-sm);" onclick="deleteActiveContact()">删除${group?'群聊':'联系人'}</button></div></div>`;
 }
 
 function toggleGroupAuto(){
@@ -2472,8 +2501,8 @@ function updateGroupAutoField(key, val){
 }
 function scheduleGroupAuto(contactId){
     scheduler.cancelByKey('groupAuto_'+contactId);
-    const c = getContact(contactId);
-    if(!c || !isGroup(c) || !c.groupAuto || !c.groupAuto.enabled) return;
+       const c = getContact(contactId);
+    if(!c || !isGroup(c) || !c.groupAuto || !c.groupAuto.enabled || c.blocked) return;
     const ga = c.groupAuto;
     let minM = Number(ga.minMinutes), maxM = Number(ga.maxMinutes);
     if(isNaN(minM) || minM < 0.1) minM = 5;
@@ -2486,8 +2515,8 @@ function scheduleGroupAuto(contactId){
     }, delay, 'groupAuto_'+contactId);
 }
 function sendGroupAutoMessage(contactId){
-    const c = getContact(contactId);
-    if(!c || !isGroup(c) || !c.groupAuto || !c.groupAuto.enabled) return;
+       const c = getContact(contactId);
+    if(!c || !isGroup(c) || !c.groupAuto || !c.groupAuto.enabled || c.blocked) return;
     const now = Date.now();
     const senders = (c.members||[]).map(id=>getContact(id)).filter(m => m && !(c.mutedUntil && c.mutedUntil[m.id] && c.mutedUntil[m.id] > now));
     if(!senders.length) return;
@@ -2702,6 +2731,112 @@ function removeContactBg(){
     const c = getActiveContact(); if(!c) return;
     if(!confirm('清除该聊天的专属背景图？')) return;
     c.bgImage = ''; saveData(true); renderMessagesNow(); renderChatInfo(); showToast('已清除');
+}
+function changeMyChatAvatar(){
+    const c = getActiveContact(); if(!c) return;
+    pickImage(d=>{
+        c.myAvatar = d; saveData(true);
+        renderChatInfo(); renderMessagesNow(); showToast('我方头像已更新');
+    });
+}
+function resetMyChatAvatar(){
+    const c = getActiveContact(); if(!c) return;
+    c.myAvatar = ''; saveData(true);
+    renderChatInfo(); renderMessagesNow(); showToast('已恢复使用我页面的头像');
+}
+function applyChatBubbleVars(contact){
+    const area = document.getElementById('message-area'); if(!area) return;
+    const b = contact && contact.bubbleSettings;
+    const setOrClear = (k,v)=>{
+        if(v!==undefined && v!==null && v!=='') area.style.setProperty(k,String(v));
+        else area.style.removeProperty(k);
+    };
+    setOrClear('--bubble-me', b?b.meBg:'');
+    setOrClear('--bubble-me-text', b?b.meText:'');
+    setOrClear('--bubble-other', b?b.otherBg:'');
+    setOrClear('--bubble-other-text', b?b.otherText:'');
+    setOrClear('--bubble-radius', b&&b.radius!=null?b.radius+'px':'');
+    setOrClear('--msg-font-size', b&&b.fontSize!=null?b.fontSize+'px':'');
+}
+function openBubbleSettings(){
+    const c = getActiveContact(); if(!c) return;
+    const t = data.theme || {};
+    const b = c.bubbleSettings || {};
+    const defMe = b.meBg || t.bubbleMe || '#4A90D9';
+    const defMeText = b.meText || t.bubbleMeText || '#ffffff';
+    const defOther = b.otherBg || t.bubbleOther || '#e8ecf1';
+    const defOtherText = b.otherText || t.bubbleOtherText || '#1a1a2e';
+    const radius = b.radius != null ? b.radius : (t.bubbleRadius != null ? t.bubbleRadius : 16);
+    const fontSize = b.fontSize != null ? b.fontSize : (t.msgFontSize || 15);
+    const customCss = b.customCss || '';
+    showModal('💬 气泡设置', `
+        <div class="setting-sub" style="margin-bottom:8px;line-height:1.6;">仅对当前聊天生效；未自定义时跟随「装扮」中的全局气泡。</div>
+        <div class="setting-item"><span class="label">我方气泡</span><div class="value"><input type="color" id="bsMeBg" value="${defMe}"><span style="font-size:12px;">文字</span><input type="color" id="bsMeText" value="${defMeText}"></div></div>
+        <div class="setting-item"><span class="label">对方气泡</span><div class="value"><input type="color" id="bsOtherBg" value="${defOther}"><span style="font-size:12px;">文字</span><input type="color" id="bsOtherText" value="${defOtherText}"></div></div>
+        <div class="setting-item"><span class="label">气泡圆角</span><div class="value"><input type="range" id="bsRadius" min="0" max="30" value="${radius}" oninput="document.getElementById('bsRadiusVal').textContent=this.value+'px'"><span id="bsRadiusVal" style="font-size:12px;width:42px;">${radius}px</span></div></div>
+        <div class="setting-item"><span class="label">气泡字号</span><div class="value"><input type="range" id="bsFontSize" min="12" max="20" value="${fontSize}" oninput="document.getElementById('bsFontSizeVal').textContent=this.value+'px'"><span id="bsFontSizeVal" style="font-size:12px;width:42px;">${fontSize}px</span></div></div>
+        <div class="setting-item" style="flex-direction:column;align-items:stretch;">
+            <span class="label">气泡 CSS 代码（仅当前聊天）</span>
+            <div class="setting-sub" style="margin-top:2px;margin-bottom:6px;line-height:1.6;">留空 → 跟随「装扮」里的全局气泡 CSS；填写 → 仅当前聊天生效，完全覆盖全局 CSS。支持 <code>.message-sent</code> / <code>.message-received</code> 类名。</div>
+            <textarea id="bsCustomCss" rows="6" placeholder="/* 自定义气泡 CSS，例如：&#10;.msg-bubble{box-shadow:0 4px 12px rgba(0,0,0,.15);}&#10;.msg-group.me .msg-bubble{background:linear-gradient(135deg,#FF6B81,#FFA07A);} */" style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;background:#f5f7fa;color:#1a1a2e;outline:none;resize:vertical;min-height:110px;line-height:1.5;">${escapeHtml(customCss)}</textarea>
+        </div>
+        <div class="modal-actions" style="flex-wrap:wrap;gap:8px;justify-content:center;">
+            <button class="btn-cancel" onclick="closeModal()">取消</button>
+            <button class="btn-outline" onclick="resetBubbleSettings()">跟随全局</button>
+            <button class="btn-outline" onclick="saveBubbleSettings(true)">应用到所有联系人</button>
+            <button class="btn-confirm" onclick="saveBubbleSettings(false)">保存</button>
+        </div>
+    `);
+}
+function saveBubbleSettings(all){
+    const c = getActiveContact(); if(!c) return;
+    const meBg = document.getElementById('bsMeBg').value;
+    const meText = document.getElementById('bsMeText').value;
+    const otherBg = document.getElementById('bsOtherBg').value;
+    const otherText = document.getElementById('bsOtherText').value;
+    let radius = parseInt(document.getElementById('bsRadius').value,10);
+    let fontSize = parseInt(document.getElementById('bsFontSize').value,10);
+    if(isNaN(radius)) radius = 16;
+    if(isNaN(fontSize)) fontSize = 15;
+    const customCss = document.getElementById('bsCustomCss').value || '';
+    const bs = {meBg, meText, otherBg, otherText, radius, fontSize, customCss};
+    if(all){
+        data.contacts.forEach(x=>{ x.bubbleSettings = Object.assign({}, bs); });
+    } else {
+        c.bubbleSettings = bs;
+    }
+    saveData(true); closeModal(); renderMessagesNow(); renderChatInfo();
+    applyCustomCSS();
+    showToast(all?'气泡设置已应用到所有联系人':'气泡设置已保存');
+}
+function resetBubbleSettings(){
+    const c = getActiveContact(); if(!c) return;
+    c.bubbleSettings = null; saveData(true); closeModal(); renderMessagesNow(); renderChatInfo();
+    applyCustomCSS();
+    showToast('已恢复跟随全局气泡');
+}
+function toggleBlockContact(){
+    const c = getActiveContact(); if(!c) return;
+    if(!c.blocked){
+        if(!confirm(`确定拉黑「${c.name}」吗？拉黑后对方将无法主动发消息和回复。`)) return;
+        c.blocked = true;
+        if(replyTimers[c.id]){ clearTimeout(replyTimers[c.id]); delete replyTimers[c.id]; }
+        scheduler.cancelByKey('autoMsg_'+c.id);
+        scheduler.cancelByKey('groupAuto_'+c.id);
+        typingContacts.delete(c.id);
+        addMessage('me', `你已将「${c.name}」拉黑`, 'sys', null, true, false, '', c.id);
+    } else {
+        c.blocked = false;
+        if(data.replySettings.autoMsgEnabled && !isGroup(c)) scheduleAutoMessageFor(c.id);
+        if(isGroup(c) && c.groupAuto && c.groupAuto.enabled) scheduleGroupAuto(c.id);
+        addMessage('me', `你已将「${c.name}」解除拉黑`, 'sys', null, true, false, '', c.id);
+    }
+    saveData(true); renderChatInfo(); renderMessagesNow();
+    showToast(c.blocked?'已拉黑':'已解除拉黑');
+}
+function notifyBlockedOnSend(c){
+    if(!c || !c.blocked) return;
+    addMessage('me', '你已将对方拉黑，对方不能发送消息', 'block', null, true, false, '', c.id);
 }
 function deleteActiveContact(){
     const c = getActiveContact(); if(!c) return;
@@ -3314,8 +3449,10 @@ function sendCustomPat(){
     const ta = document.getElementById('patCustomInput');
     const text = ta ? ta.value.trim() : '';
     if(!text){showToast('请输入内容');return;}
-    const name = data.user.name || '我';
+       const name = data.user.name || '我';
+    const c = getActiveContact();
     addPatMessage('me', name+' '+text);
+    if(c && c.blocked) notifyBlockedOnSend(c);
     closePatInput();
     schedulePartnerReply();
 }
@@ -3545,8 +3682,19 @@ function applyCustomFont(){
     tag.textContent=`@font-face{font-family:"LingdongUserFont";src:url("${url}");font-display:swap;}html,body,button,input,textarea,select,#app,#app *{font-family:"LingdongUserFont",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif !important;}`;
 }
 function applyCustomCSS(){
-    let tag=document.getElementById('customCssTag');if(!tag){tag=document.createElement('style');tag.id='customCssTag';document.body.appendChild(tag);}
-    let css=(data.theme&&data.theme.customCSS)?data.theme.customCSS:'';
+    let tag=document.getElementById('customCssTag');
+    if(!tag){tag=document.createElement('style');tag.id='customCssTag';document.body.appendChild(tag);}
+    const pageChat = document.getElementById('pageChat');
+    const isChatActive = !!(pageChat && pageChat.classList.contains('active'));
+    const c = isChatActive ? getActiveContact() : null;
+    let css = '';
+    if(isChatActive && c && c.bubbleSettings && c.bubbleSettings.customCss){
+        // 聊天页 且 联系人有独立 CSS → 用联系人的（完全覆盖全局）
+        css = c.bubbleSettings.customCss;
+    } else {
+        // 其它情况 → 用「装扮」里的全局 CSS
+        css = (data.theme && data.theme.customCSS) ? data.theme.customCSS : '';
+    }
     if(css) css=css.replace(/\.message-sent\b/g,'.msg-group.me .msg-bubble').replace(/\.message-received\b/g,'.msg-group.other .msg-bubble');
     tag.textContent=css;
 }
@@ -3646,8 +3794,8 @@ function scheduleAutoMessage(){
 function scheduleAutoMessageFor(contactId){
     scheduler.cancelByKey('autoMsg_'+contactId);
     if(!data.replySettings.autoMsgEnabled) return;
-    const c = getContact(contactId);
-    if(!c || isGroup(c)) return;
+       const c = getContact(contactId);
+    if(!c || isGroup(c) || c.blocked) return;
     const s = data.replySettings;
     let minM=Number(s.autoMsgMinMinutes),maxM=Number(s.autoMsgMaxMinutes);
     if(isNaN(minM)||minM<0.1) minM=5;
@@ -3658,7 +3806,7 @@ function scheduleAutoMessageFor(contactId){
 }
 function sendPartnerAutoMessage(contactId){
     const c = contactId ? getContact(contactId) : getActiveContact();
-    if(!c || isGroup(c)) return;
+    if(!c || isGroup(c) || c.blocked) return;
     const cid = c.id;
     const s=data.replySettings;
     let minC=Number(s.autoMsgMinCount),maxC=Number(s.autoMsgMaxCount);
@@ -3816,6 +3964,7 @@ function confirmDecision(){
     const options=optionsStr.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     if(options.length<2){showToast('请至少输入两个选项');return;}
     const c = getActiveContact();
+ if(c && c.blocked){ showToast('对方已被拉黑，无法回复'); return; }
     const cid = c ? c.id : null;
     let targets = [];
     if(isGroup(c)){
@@ -3892,16 +4041,10 @@ function pickAndSendImage(){closeMorePanel();const input=getPickImageInput();inp
 // ======================================================================
 //  消息操作
 // ======================================================================
-function onBubbleClick(id){
-    const group=document.querySelector(`.msg-group[data-id="${id}"]`);if(!group)return;
-    const actions=group.querySelector('.msg-actions');if(!actions)return;
-    const isOpen=actions.style.display==='flex';
-    document.querySelectorAll('.msg-actions').forEach(a=>a.style.display='');
-    if(!isOpen)actions.style.display='flex';
-}
-function replyToMessage(id){
+   function replyToMessage(id){
     const c=getActiveContact();if(!c)return;
     const m=(c.messages||[]).find(x=>x.id===id);if(!m)return;
+    document.querySelectorAll('.msg-actions-bar.show').forEach(x=>x.classList.remove('show'));
     currentReplyTarget=id;
     let text=m.content||'';
     if(m.type==='emoji'||m.type==='image')text='[图片]';
@@ -4199,6 +4342,7 @@ function renameMusic(id){
 function maybeMusicInteraction(){
     if(callState&&callState.active)return;
     if(pendingMusicInvite)return;
+    const ac = getActiveContact(); if(ac && ac.blocked) return;
     const m=data.music;
     if(!m||!m.inviteEnabled)return;
     if(!m.list||!m.list.length)return;
@@ -4396,6 +4540,8 @@ function confirmComposeLetter(){
 }
 function schedulePartnerReplyLetter(letterId){
     const L=data.letters,s=L.settings;
+    const letter0=L.list.find(x=>x.id===letterId);
+    if(letter0 && letter0.contactId){ const cc=getContact(letter0.contactId); if(cc && cc.blocked) return; }
     let prob=Number(s.replyProbability);if(isNaN(prob))prob=0;
     if(Math.random()>=prob)return;
     let maxM=Number(s.replyMaxMinutes);if(isNaN(maxM)||maxM<0.1)maxM=60;
@@ -4420,8 +4566,9 @@ function schedulePartnerReplyLetter(letterId){
 function maybePartnerWriteLetter(){
     const L=data.letters;if(!L||!L.settings)return;
     const s=L.settings;
-    if(!s.partnerAutoEnabled)return;
+   if(!s.partnerAutoEnabled)return;
     if(callState&&callState.active)return;
+    const ac = getActiveContact(); if(ac && ac.blocked) return;
     ensureLetterDailyReset();
     if(s.dailyWriteCount>=s.dailyLimitValue)return;
     let prob=Number(s.autoProbability);if(isNaN(prob))prob=0;
@@ -4434,11 +4581,13 @@ function maybePartnerWriteLetter(){
     const singles = data.contacts.filter(x=>!isGroup(x));
     let target = getActiveContact();
     if(!target || isGroup(target)) target = singles.length ? singles[Math.floor(Math.random()*singles.length)] : null;
+       if(target && target.blocked) return;
     const targetId = target ? target.id : null;
     scheduler.add(()=>{ensureLetterDailyReset();if(s.dailyWriteCount>=s.dailyLimitValue)return;writePartnerLetter(targetId);},delayMs,'partnerLetterWrite');
 }
 function writePartnerLetter(contactId){
     const L=data.letters,s=L.settings;
+    if(contactId){ const cc=getContact(contactId); if(cc && cc.blocked) return; }
     const cards=getAllCards();
     let minC=Math.max(1,Math.round(Number(s.cardMin)||1));
     let maxC=Math.max(1,Math.round(Number(s.cardMax)||3));
@@ -4878,7 +5027,7 @@ function clearAllData(){
 //  拍一拍续接
 // ======================================================================
 function pokePartnerContinue(){
-    const c=getActiveContact();if(!c)return;
+    const c=getActiveContact();if(!c || c.blocked) return;
     const cid = c.id;
     scheduler.cancelByKey('pokeContinue');
     scheduler.add(()=>{
