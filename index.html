@@ -2048,12 +2048,23 @@ function bindChatImagesAutoScroll(area){
 }
 /* 用户一旦手动操作聊天区域，立即取消自动滚底（避免和上滑看历史打架） */
 function ensureChatScrollGuard(area){
-    if(!area || _chatScrollGuardBound) return;
-    _chatScrollGuardBound = true;
-    const cancel = ()=>{ _chatAutoScrollUntil = 0; };
-    area.addEventListener('touchstart', cancel, {passive:true});
-    area.addEventListener('wheel', cancel, {passive:true});
-    area.addEventListener('mousedown', cancel, {passive:true});
+    if(!area) return;
+    if(!_chatScrollGuardBound){
+        _chatScrollGuardBound = true;
+        const cancel = ()=>{ _chatAutoScrollUntil = 0; };
+        area.addEventListener('touchstart', cancel, {passive:true});
+        area.addEventListener('wheel', cancel, {passive:true});
+        area.addEventListener('mousedown', cancel, {passive:true});
+    }
+    if(!area._ldScrollObserver && typeof ResizeObserver !== 'undefined'){
+        try{
+            area._ldScrollObserver = new ResizeObserver(()=>{
+                if(Date.now() > _chatAutoScrollUntil) return;
+                try{ area.scrollTop = area.scrollHeight; }catch(e){}
+            });
+            area._ldScrollObserver.observe(area);
+        }catch(e){}
+    }
 }
 function isChatPageVisible(){
     const el = document.getElementById('pageChat');
@@ -2140,13 +2151,11 @@ function addMessage(sender,content,type,replyTo,silent,isAuto,senderName,contact
         if(!appended){
             renderMessagesNow();
         }
-        if(sender === 'me' || wasNearBottom){
-            _chatAutoScrollUntil = Date.now() + 1200;
-            requestAnimationFrame(scrollToBottomImmediate);
-            // 图片消息是 dataURL，img 解码通常在下一帧之后，补一次兜底滚动
-            setTimeout(()=>{
-                if(Date.now() <= _chatAutoScrollUntil) { try{ scrollToBottomImmediate(); }catch(e){} }
-            }, 120);
+                if(sender === 'me' || wasNearBottom){
+            _chatAutoScrollUntil = Date.now() + 1600;
+            const doScroll = ()=>{ if(Date.now() <= _chatAutoScrollUntil){ try{ scrollToBottomImmediate(); }catch(e){} } };
+            requestAnimationFrame(doScroll);
+            [30, 80, 160, 300, 500, 800].forEach(ms=>setTimeout(doScroll, ms));
         }
     }else{
         const contactsPage = document.getElementById('pageContacts');
@@ -2165,7 +2174,8 @@ function sendMessage(){
     const c = getActiveContact(); if(!c){showToast('请先选择联系人');return;}
     const input = document.getElementById('msgInput');
     const text = input.value.trim(); if(!text) return;
-    input.value = ''; input.style.height = 'auto';
+    input.value = '';
+requestAnimationFrame(()=>{ input.style.height = 'auto'; });
         addMessage('me',text,'text',currentReplyTarget||null);
     if(c.blocked) notifyBlockedOnSend(c);
     cancelReply();
@@ -5644,9 +5654,17 @@ function setupKeyboardViewportFix(){
                     const area = document.getElementById('message-area');
                     if(area) area.scrollTop = area.scrollHeight;
                 }
-            }else{
+                      }else{
                 resetApp();
-            }
+                if(isChatPageVisible()){
+                    const area = document.getElementById('message-area');
+                    if(area){
+                        requestAnimationFrame(()=>{ try{ area.scrollTop = area.scrollHeight; }catch(e){} });
+                        setTimeout(()=>{ try{ area.scrollTop = area.scrollHeight; }catch(e){} }, 60);
+                        setTimeout(()=>{ try{ area.scrollTop = area.scrollHeight; }catch(e){} }, 200);
+                    }
+                }
+            }  
         });
     };
     vv.addEventListener('resize', apply);
@@ -5764,8 +5782,6 @@ async function init(){
 
     scheduleSplashHide();
     registerSWForNotifications();
-    try{ setupManifest(); }catch(e){}
-
     // ========== 生命周期保存数据 ==========
     window.addEventListener('pagehide',()=>{try{flushSave();}catch(e){}});
     window.addEventListener('beforeunload',()=>{try{flushSave();}catch(e){}});
