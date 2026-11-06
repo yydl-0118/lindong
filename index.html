@@ -153,7 +153,7 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 
 /* ===== 表情 / 图片气泡：贴纸不再透出背景 ===== */
 .msg-bubble.emoji-bubble{background:#fff!important;color:transparent!important;box-shadow:0 2px 8px rgba(0,0,0,.08)!important;border:none!important;padding:4px!important;line-height:0;max-width:200px;position:relative;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;overflow:hidden;}
-.msg-bubble.emoji-bubble .emoji-img{max-width:110px;max-height:120px;border-radius:calc(var(--bubble-radius) - 4px);display:block;background:#fff;}
+.msg-bubble.emoji-bubble .emoji-img{max-width:90px;max-height:100px;border-radius:calc(var(--bubble-radius) - 4px);display:block;background:#fff;}
 .msg-bubble.emoji-bubble.has-reply .emoji-img{background:transparent;box-shadow:none;}
 .msg-bubble.emoji-bubble .emoji-img.img-large{max-width:180px;max-height:200px}
 .msg-bubble.emoji-bubble .time{display:none}
@@ -1969,13 +1969,14 @@ function toggleRecallMessage(el, msgId){
 function renderMessagesNow(){
     const area = document.getElementById('message-area');
     const c = getActiveContact();
-    if(!c){ area.style.backgroundImage = 'none'; area.innerHTML = ''; applyChatBubbleVars(null); return; }
+    if(!c){ area.style.backgroundImage = 'none'; area.innerHTML = ''; area.dataset.lastMsgId = ''; applyChatBubbleVars(null); return; }
     const bg = c.bgImage || '';
     area.style.backgroundImage = bg ? `url(${bg})` : 'none';
     applyChatBubbleVars(c);
     const msgs = c.messages || [];
     if(msgs.length === 0){
         area.innerHTML = '<div class="empty-state" style="padding-top:60px;"><div class="empty-icon">💬</div><div>还没有消息，开始聊天吧</div></div>';
+        area.dataset.lastMsgId = '';
         ensureChatScrollGuard(area);
         if(typingContacts.has(c.id)) showTypingIndicator(c.id);
         return;
@@ -1996,6 +1997,11 @@ function renderMessagesNow(){
         html += buildMessageHtml(m, msgs);
     }
     area.innerHTML = html;
+    // 记录当前渲染窗口的最后一条消息 id，供增量追加校验
+    area.dataset.lastMsgId = (()=>{
+        for(let i=msgs.length-1;i>=0;i--){ if(msgs[i] && msgs[i].timestamp) return msgs[i].id; }
+        return '';
+    })();
     if(typingContacts.has(c.id)) showTypingIndicator(c.id);
 
     ensureChatScrollGuard(area);
@@ -2013,21 +2019,18 @@ function scrollToBottomIfNear(t){if(isNearBottom(t))requestAnimationFrame(scroll
 /* === 打开聊天后稳健滚到底部（解决图片异步加载导致停在中间） === */
 function scrollChatToBottomSmooth(area){
     if(!area) return;
-    _chatAutoScrollUntil = Date.now() + 2500;
+    _chatAutoScrollUntil = Date.now() + 1800;
     const doScroll = ()=>{
         if(Date.now() > _chatAutoScrollUntil) return;
         try{ area.scrollTop = area.scrollHeight; }catch(e){}
     };
     doScroll();
     requestAnimationFrame(doScroll);
-    setTimeout(doScroll, 30);
-    setTimeout(doScroll, 80);
-    setTimeout(doScroll, 160);
-    setTimeout(doScroll, 300);
-    setTimeout(doScroll, 600);
-    setTimeout(doScroll, 1000);
+    setTimeout(doScroll, 50);
+    setTimeout(doScroll, 150);
+    setTimeout(doScroll, 350);
+    setTimeout(doScroll, 700);
 }
-
 /* 给聊天区域里未加载完的图片补一个 load 回调，加载完后再滚到底 */
 function bindChatImagesAutoScroll(area){
     if(!area) return;
@@ -2127,14 +2130,23 @@ function addMessage(sender,content,type,replyTo,silent,isAuto,senderName,contact
     if(c.messages.length > 1500) c.messages = c.messages.slice(-1500);
     if(sender === 'partner' && !isActive){ c.unread = (c.unread || 0) + 1; }
 
-    saveData(true);
+    // ⬇️ 由同步全量保存改为 16ms 防抖保存，避免每条消息都 JSON.stringify 整个 data
+    saveData();
 
-        if(sender === 'partner' && !isActive){ updateNavBadge(); }
+    if(sender === 'partner' && !isActive){ updateNavBadge(); }
     if(isActive){
-        renderMessagesNow();
+        const area = document.getElementById('message-area');
+        const appended = tryAppendMessageToUI(msg, c);
+        if(!appended){
+            renderMessagesNow();
+        }
         if(sender === 'me' || wasNearBottom){
-            _chatAutoScrollUntil = Date.now() + 1500;
+            _chatAutoScrollUntil = Date.now() + 1200;
             requestAnimationFrame(scrollToBottomImmediate);
+            // 图片消息是 dataURL，img 解码通常在下一帧之后，补一次兜底滚动
+            setTimeout(()=>{
+                if(Date.now() <= _chatAutoScrollUntil) { try{ scrollToBottomImmediate(); }catch(e){} }
+            }, 120);
         }
     }else{
         const contactsPage = document.getElementById('pageContacts');
@@ -2158,20 +2170,19 @@ function sendMessage(){
     if(c.blocked) notifyBlockedOnSend(c);
     cancelReply();
     showTypingIndicator(c.id);
-    scrollToBottomIfNear(150);
     schedulePartnerReply();
 }
 function addEmojiMessage(dataUrl){
     const c = getActiveContact(); if(!c) return;
         addMessage('me',dataUrl,'emoji',currentReplyTarget||null);
     if(c.blocked) notifyBlockedOnSend(c);
-    cancelReply();showTypingIndicator(c.id); scrollToBottomIfNear(150); schedulePartnerReply();
+        cancelReply();showTypingIndicator(c.id); schedulePartnerReply();
 }
 function addImageMessage(dataUrl){
     const c = getActiveContact(); if(!c) return;
-        addMessage('me',dataUrl,'image',currentReplyTarget||null);
+    addMessage('me',dataUrl,'image',currentReplyTarget||null);
     if(c.blocked) notifyBlockedOnSend(c);
-    cancelReply(); showTypingIndicator(c.id); scrollToBottomIfNear(150); schedulePartnerReply();
+    cancelReply(); showTypingIndicator(c.id); schedulePartnerReply();
 }
 function addPatMessage(sender,content){return addMessage(sender,content,'pat',null,false,false);}
 function addMusicMessage(sender,content,silent){return addMessage(sender,content,'music',null,!!silent);}
@@ -2960,6 +2971,41 @@ function clearBubbleSettings(){
     renderChatInfo();
     applyCustomCSS();
     showToast('已清空气泡设置，自动跟随全局');
+}
+/* 尝试把新消息直接追加到 DOM 末尾，失败则返回 false 走全量渲染 */
+function tryAppendMessageToUI(msg, contact){
+    try{
+        const area = document.getElementById('message-area');
+        if(!area || !contact) return false;
+        if(data.activeContactId !== contact.id) return false;
+        if(!isChatPageVisible()) return false;
+        if(_msgRenderStart != null) return false;
+        const msgs = contact.messages || [];
+        if(!msgs.length || msgs[msgs.length-1].id !== msg.id) return false;
+        // DOM 里当前最后一条必须是新消息的前一条
+        const prevId = msgs.length >= 2 ? msgs[msgs.length-2].id : '';
+        if((area.dataset.lastMsgId || '') !== prevId) return false;
+        if(area.querySelector('.empty-state')) return false;
+
+        const prevMsg = msgs.length >= 2 ? msgs[msgs.length-2] : null;
+        let html = '';
+        const dateStr = formatDate(msg.timestamp);
+        if(!prevMsg || formatDate(prevMsg.timestamp) !== dateStr){
+            html += `<div class="msg-time-divider"><span>${isToday(msg.timestamp)?'今天':dateStr}</span></div>`;
+        }
+        html += buildMessageHtml(msg, msgs);
+
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const frag = document.createDocumentFragment();
+        Array.from(tmp.children).forEach(n=>frag.appendChild(n));
+        const typingEl = document.getElementById('typingIndicator');
+        if(typingEl) area.insertBefore(frag, typingEl);
+        else area.appendChild(frag);
+
+        area.dataset.lastMsgId = msg.id;
+        return true;
+    }catch(e){ return false; }
 }
 function saveBubbleSettings(){
     const c = getActiveContact(); if(!c) return;
