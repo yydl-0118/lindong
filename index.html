@@ -555,6 +555,16 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
     .msg-avatar{width:34px;height:34px;}
     .msg-side{min-width:34px;}
 }
+/* ===== 键盘弹起时的防空隙补丁 ===== */
+body.kb-open {
+    --safe-bottom: 0px !important;
+}
+body.kb-open #footer {
+    padding-bottom: 2px !important; /* 强行缩小底部间距，贴合键盘 */
+}
+body.kb-open #app {
+    padding-bottom: 0 !important;
+}
 </style>
 </head>
 <body>
@@ -2191,8 +2201,45 @@ function sendMessage(){
     cancelReply();
     showTypingIndicator(c.id);
     schedulePartnerReply();
+    // ✅ 新增这 4 行：微信式，发送完保持输入框焦点，键盘不收起
+    if(document.activeElement !== input){
+        try{ input.focus({preventScroll:true}); }
+        catch(e){ try{ input.focus(); }catch(e2){} }
+    }
 }
-function addEmojiMessage(dataUrl){
+/* ========== 发送按钮：按下即发送 + 阻止抢焦点 ========== */
+function bindSendButtonKeepFocus(btn){
+    if(!btn || btn._ldFocusBound) return;
+    btn._ldFocusBound = true;
+    let lastFire = 0;
+    const fire = (e)=>{
+        if(e){ try{ e.preventDefault(); }catch(err){} }
+        const now = Date.now();
+        if(now - lastFire < 400) return;
+        lastFire = now;
+        sendMessage();
+    };
+    btn.addEventListener('pointerdown', fire, {passive:false});
+    btn.addEventListener('touchstart', fire, {passive:false});
+    btn.addEventListener('click', fire);
+}
+
+/* ========== 点击聊天区 → 主动收起键盘（微信式） ========== */
+/* ========== 点击聊天区 → 主动收起键盘（微信式） ========== */
+function bindChatAreaBlurInput(){
+    const area  = document.getElementById('message-area');
+    const input = document.getElementById('msgInput');
+    if(!area || !input || area._ldBlurBound) return;
+    area._ldBlurBound = true;
+    const blurInput = ()=>{
+        if(document.activeElement === input){
+            try{ input.blur(); }catch(e){}
+        }
+    };
+    // ✅ 只监听 click，这样用户滑动聊天记录时，键盘绝对不会收起！
+    area.addEventListener('click', blurInput);
+}
+  function addEmojiMessage(dataUrl){
     const c = getActiveContact(); if(!c) return;
         addMessage('me',dataUrl,'emoji',currentReplyTarget||null);
     if(c.blocked) notifyBlockedOnSend(c);
@@ -5685,15 +5732,6 @@ function setupKeyboardViewportFix(){
     const vv = window.visualViewport;
     if(!app || !vv) return;
     let applying = false;
-    const resetApp = () => {
-        app.style.position = '';
-        app.style.top = '';
-        app.style.left = '';
-        app.style.right = '';
-        app.style.height = '';
-        app.style.maxWidth = '';
-        app.style.margin = '';
-    };
     const apply = () => {
         if(applying) return;
         applying = true;
@@ -5702,8 +5740,11 @@ function setupKeyboardViewportFix(){
             const h = Math.round(vv.height);
             const top = Math.round(vv.offsetTop);
             const winH = window.innerHeight;
-            const kbOpen = h < winH - 120;
-            if(kbOpen && h > 240 && h < winH){
+            const kbOpen = h < winH - 100; // 阈值调小，响应更灵敏
+
+            if(kbOpen && h > 240){
+                // ✅ 键盘弹起
+                document.body.classList.add('kb-open');
                 app.style.position = 'fixed';
                 app.style.top = top + 'px';
                 app.style.left = '0';
@@ -5711,28 +5752,36 @@ function setupKeyboardViewportFix(){
                 app.style.height = h + 'px';
                 app.style.maxWidth = '480px';
                 app.style.margin = '0 auto';
+                
                 if(isChatPageVisible()){
                     const area = document.getElementById('message-area');
                     if(area) area.scrollTop = area.scrollHeight;
                 }
-                      }else{
-                resetApp();
+            }else{
+                // ✅ 键盘收起
+                document.body.classList.remove('kb-open');
+                app.style.position = '';
+                app.style.top = '';
+                app.style.left = '';
+                app.style.right = '';
+                app.style.height = '';
+                app.style.maxWidth = '';
+                app.style.margin = '';
+                
                 if(isChatPageVisible()){
                     const area = document.getElementById('message-area');
                     if(area){
                         requestAnimationFrame(()=>{ try{ area.scrollTop = area.scrollHeight; }catch(e){} });
                         setTimeout(()=>{ try{ area.scrollTop = area.scrollHeight; }catch(e){} }, 60);
-                        setTimeout(()=>{ try{ area.scrollTop = area.scrollHeight; }catch(e){} }, 200);
                     }
                 }
-            }  
+            }
         });
     };
     vv.addEventListener('resize', apply);
     vv.addEventListener('scroll', apply);
     apply();
 }
-
 // ======================================================================
 //  开屏动画
 // ======================================================================
@@ -5829,9 +5878,9 @@ async function init(){
             }
         });
     }
-    const sendBtn=document.getElementById('sendBtn');
-    if(sendBtn)sendBtn.addEventListener('click',sendMessage);
-
+       const sendBtn=document.getElementById('sendBtn');
+    if(sendBtn) bindSendButtonKeepFocus(sendBtn);
+    bindChatAreaBlurInput();
     // 点头像触发继续说
     const headerAvatar=document.getElementById('headerAvatar');
     if(headerAvatar){
