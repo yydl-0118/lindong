@@ -151,6 +151,66 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .auto-badge{position:absolute;top:-6px;left:-8px;font-size:14px;line-height:1;z-index:5;pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
 .msg-group.me .auto-badge{left:auto;right:-8px}
 
+/* ===== 决策卡片 UI ===== */
+.decision-card {
+    background: rgba(255, 255, 255, 0.95); /* 白色半透明底，更干净 */
+    border-radius: 12px; 
+    padding: 12px 14px;  
+    width: 180px;        /* 宽度从 210px 缩到 180px，适中且精致 */
+    max-width: 100%;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    color: #333;
+    border: 1px solid rgba(0,0,0,0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+.dc-title { 
+    font-size: 13px;     
+    font-weight: bold; 
+    margin-bottom: 6px; 
+    color: var(--primary); /* 标题跟随主题色 */
+}
+.dc-question { 
+    font-size: 12px;     
+    margin-bottom: 10px; 
+    line-height: 1.4; 
+    font-weight: 500; 
+    color: #444;
+}
+.dc-options { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 6px;            
+    margin-bottom: 10px; 
+}
+.dc-option {
+    background: #f5f7fa; /* 未选中稍微带点灰底 */
+    border-radius: 8px;  
+    padding: 6px 10px;   
+    font-size: 12px;     
+    text-align: center;
+    color: #555;
+    transition: 0.2s;
+    word-break: break-word;
+}
+.dc-option.picked {
+    background: var(--primary); /* 选中项直接变成主题色 */
+    color: #fff;
+    font-weight: 500;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15); /* 加个小阴影立体一点 */
+}
+.dc-divider {
+    height: 1px;
+    background: rgba(0,0,0,0.06);
+    margin: 0 -14px 8px -14px;
+}
+.dc-status {
+    text-align: right;
+    font-size: 10px;     /* 字号变小 */
+    color: var(--primary); /* 底部文字跟随主题色 */
+    font-weight: 600;
+    letter-spacing: .5px;
+}
 /* ===== 表情 / 图片气泡：贴纸不再透出背景 ===== */
 .msg-bubble.emoji-bubble{background:#fff!important;color:transparent!important;box-shadow:0 2px 8px rgba(0,0,0,.08)!important;border:none!important;padding:4px!important;line-height:0;max-width:200px;position:relative;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;overflow:hidden;}
 .msg-bubble.emoji-bubble .emoji-img{max-width:90px;max-height:100px;border-radius:calc(var(--bubble-radius) - 4px);display:block;background:#fff;}
@@ -424,6 +484,24 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .div-copy-btn{width:100%;padding:14px;border-radius:14px;border:1px solid rgba(167,139,250,.5);background:rgba(139,92,246,.15);color:#C4B5FD;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:12px;font-family:inherit}
 .div-reset-btn{width:100%;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.6);font-size:13px;cursor:pointer;font-family:inherit}
 .div-hint{text-align:center;font-size:12px;color:rgba(255,255,255,.4);margin-top:14px;line-height:1.6}
+/* ===== 占卜：洗牌动画 & 翻牌 ===== */
+.div-card-row{perspective:900px}
+.div-shuffle{text-align:center;padding:56px 20px}
+.div-shuffle-stack{position:relative;width:112px;height:164px;margin:0 auto 30px}
+.div-shuffle-card{position:absolute;inset:0;border-radius:14px;background:linear-gradient(135deg,#4C1D95,#8B5CF6);border:2px solid rgba(255,255,255,.22);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.div-shuffle-card::after{content:'🔮';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:34px;line-height:1;opacity:.92}
+.div-shuffle-stack .div-shuffle-card:nth-child(1){animation:divShuffle1 1.3s ease-in-out infinite}
+.div-shuffle-stack .div-shuffle-card:nth-child(2){animation:divShuffle2 1.3s ease-in-out infinite}
+.div-shuffle-stack .div-shuffle-card:nth-child(3){animation:divShuffle3 1.3s ease-in-out infinite}
+@keyframes divShuffle1{0%,100%{transform:translate(0,0) rotate(0)}25%{transform:translate(-28px,-10px) rotate(-16deg)}50%{transform:translate(18px,8px) rotate(11deg)}75%{transform:translate(-10px,14px) rotate(-7deg)}}
+@keyframes divShuffle2{0%,100%{transform:translate(0,0) rotate(0)}25%{transform:translate(26px,-8px) rotate(15deg)}50%{transform:translate(-16px,12px) rotate(-11deg)}75%{transform:translate(12px,-14px) rotate(8deg)}}
+@keyframes divShuffle3{0%,100%{transform:translate(0,0) rotate(0)}25%{transform:translate(6px,18px) rotate(7deg)}50%{transform:translate(-10px,-15px) rotate(-6deg)}75%{transform:translate(22px,4px) rotate(13deg)}}
+.div-shuffle-text{font-size:15px;color:rgba(255,255,255,.7);letter-spacing:3px}
+.div-card-back{background:linear-gradient(160deg,#3A2A6B,#5B3FA8)!important;border-color:rgba(167,139,250,.45)!important;cursor:pointer}
+.div-card-back .div-card-back-icon{font-size:34px;line-height:1;margin-bottom:8px;animation:divCardFloat 2.2s ease-in-out infinite}
+@keyframes divCardFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.div-card.flip-in{animation:divCardFlip .5s cubic-bezier(.2,.9,.3,1.15)}
+@keyframes divCardFlip{0%{transform:rotateY(88deg) scale(.86);opacity:0}100%{transform:rotateY(0) scale(1);opacity:1}}
 
 .clock-title{text-align:center;font-size:17px;font-weight:600;letter-spacing:1px;margin:14px 0 26px;color:#fff}
 .clock-big-row{display:flex;gap:14px;margin-bottom:16px}
@@ -795,7 +873,9 @@ function defaultData(){
             cardReplyMinCount:1,cardReplyMaxCount:5,autoMsgMinCount:1,autoMsgMaxCount:3,
             textEmojiEnabled:false,textEmojiWithCard:true,textEmojiProbability:0.2,
             seenNoReplyEnabled:false,recallEnabled:false,recallProbability:0.15,
-            spellEnabled:false,spellMinCount:2,spellMaxCount:3
+            spellEnabled:false,spellMinCount:2,spellMaxCount:3,
+            decisionDelay:3,
+            decisionPickCount:1
         },
         settings:{soundEnabled:true,soundPreset:'ding',soundCustom:'',callSoundEnabled:true,callSoundPreset:'ring',callCustom:'',notificationEnabled:true,notifyOnlyWhenHidden:false,keepAlive:true,showAvatar:true},
         emojis:[],
@@ -804,7 +884,6 @@ function defaultData(){
         patSettings:{probability:0.03,contents:['拍了拍你','轻轻拍了拍你','拍了拍你的头','戳了戳你']}
     };
 }
-
 function deepMerge(t,s){
     if(!s||typeof s!=='object') return t;
     if(!t||typeof t!=='object') return s;
@@ -836,6 +915,10 @@ let clockState = {open:false,direction:null,targetName:'',targetContactId:null,s
 let divType = 'tarot';
 let divQuestion = '';
 let divDrawn = null;
+let divStage = 'input';        // input | shuffle | reveal
+let divRevealed = new Set();   // 已翻开的牌索引
+let divJustFlipped = -1;       // 本帧刚翻开的牌（用于播放动画）
+let divShuffleTimer = null;
 let wordCardSearch = '';
 let wordCardScope = 'shared';
 let wordCardOwnerId = null;
@@ -1565,10 +1648,11 @@ async function showSystemNotification(msg, force, contactId){
     if(!('Notification' in window)) return;
     if(Notification.permission !== 'granted') return;
     if(data.settings.notifyOnlyWhenHidden && !document.hidden && !force) return;
-
-    let body = msg.content || '';
-    if(msg.type==='emoji'||msg.type==='image') body='[图片]';
-   else if(msg.type==='pat') body=(msg.content||'');
+    
+let body = msg.content || '';
+    if(msg.type==='decision') body = '[抉择] ' + (msg.decisionData?.question || '');
+    else if(msg.type==='emoji'||msg.type==='image') body='[图片]';
+      else if(msg.type==='pat') body=(msg.content||'');
     else if(msg.type==='music') body=msg.content||'🎧 听歌邀请';
     if(body.length>120) body = body.slice(0,120)+'…';
 
@@ -1697,11 +1781,13 @@ function switchToolTab(tab){
 //  联系人
 // ======================================================================
 function getLastMessage(c){const msgs=c.messages||[];return msgs.length?msgs[msgs.length-1]:null;}
+
 function previewOf(m,c){
     if(!m) return '';
     const prefix = (isGroup(c) && m.sender==='partner' && m.senderName) ? (m.senderName+': ') : '';
+    if(m.type==='decision') return prefix + '[抉择] ' + (m.decisionData?.question || '');
     if(m.type==='emoji'||m.type==='image') return prefix+'[图片]';
-   if(m.type==='pat') return (m.content||'');
+    if(m.type==='pat') return (m.content||'');
     if(m.type==='call') return m.content||'[通话]';
     if(m.type==='sys') return m.content||'';
     if(m.type==='recall') return m.content||'';
@@ -1861,7 +1947,36 @@ function buildMessageHtml(m,msgs){
     if(m.type === 'call') return `<div class="msg-system-center" data-id="${m.id}"><span><span class="sys-icon">📞</span>${escapeHtml(m.content)}</span></div>`;
     if(m.type === 'readno') return `<div class="msg-system-center" data-id="${m.id}"><span><span class="sys-icon">👀</span>${escapeHtml(m.content)}</span></div>`;
     if(m.type === 'block') return `<div class="msg-system-center" data-id="${m.id}"><span><span class="sys-icon">🚫</span>${escapeHtml(m.content)}</span></div>`;
+        if(m.type === 'decision') {
+        const d = m.decisionData || {};
+        const question = d.question || '';
+        const options = d.options || [];
+        const picked = d.picked || [];
+        const isMe = m.sender === 'me';
+        const groupClass = isMe ? 'me' : 'other';
+        const timeStr = formatTime(m.timestamp);
+        const showAvatar = data.settings && data.settings.showAvatar !== false;
+        
+        let optionsHtml = '';
+        options.forEach(opt => {
+            const isPicked = picked.includes(opt);
+            optionsHtml += `<div class="dc-option ${isPicked ? 'picked' : ''}">${escapeHtml(opt)}</div>`;
+        });
 
+        const cardHtml = `<div class="decision-card" onclick="toggleMsgActions(event,'${m.id}')">
+            <div class="dc-title">抉择</div>
+            <div class="dc-question">${escapeHtml(question)}</div>
+            <div class="dc-options">${optionsHtml}</div>
+            <div class="dc-divider"></div>
+            <div class="dc-status">抉择已完成</div>
+        </div>`;
+
+        const avatarHtml = showAvatar ? `<div class="msg-avatar">${avatarHtmlFor(m.sender, m.senderId, m.senderName)}</div>` : '';
+        const sideHtml = `<div class="msg-side">${avatarHtml}<span class="msg-side-time">${timeStr}</span></div>`;
+        
+        // ✅ 彻底去掉 msg-bubble 包裹，让卡片独立悬浮
+        return `<div class="msg-group ${groupClass}" data-id="${m.id}" style="max-width:90%;">${sideHtml}<div class="msg-body" style="padding:0;background:transparent;">${cardHtml}</div></div>`;
+    }
     if(m.type === 'recall'){
         const hasRecalled = (m.recalledType==='image'||m.recalledType==='emoji'||typeof m.recalledContent==='string') && (m.recalledContent!==undefined && m.recalledContent!==null);
         if(hasRecalled){
@@ -4415,7 +4530,7 @@ function initCallMiniDrag(){
 // ======================================================================
 //  决策
 // ======================================================================
-function showDecisionModal(){
+    function showDecisionModal(){
     closeMorePanel();
     const c = getActiveContact();
     const isGroupChat = isGroup(c);
@@ -4424,23 +4539,38 @@ function showDecisionModal(){
         const now = Date.now();
         const members = (c.members||[]).map(id=>getContact(id)).filter(m=>m && !(c.mutedUntil && c.mutedUntil[m.id] && c.mutedUntil[m.id] > now));
         if(members.length){
-            memberHtml = `<label>谁来回答（可多选，选中的每位成员都会回答）</label><div class="group-member-list" id="decisionMembers" style="max-height:170px;background:#fff;">` + members.map(m=>{const av = m.avatar ? `<img src="${m.avatar}" alt="">` : escapeHtml((m.name||'?')[0].toUpperCase());return `<label class="group-member-item selected" style="cursor:pointer;background:#fff;"><div class="gmi-avatar">${av}</div><div class="gmi-name">${escapeHtml(m.name)}</div><input type="checkbox" value="${m.id}" checked style="width:20px;height:20px;accent-color:var(--primary);flex-shrink:0;" onchange="this.closest('.group-member-item').classList.toggle('selected', this.checked)"></label>`;}).join('') + `</div><div class="setting-sub" style="margin-bottom:4px;">每位被勾选的成员都会各自随机选择一个答案发到群里</div>`;
+            memberHtml = `<label>谁来回答（可多选，选中的每位成员都会回答）</label><div class="group-member-list" id="decisionMembers" style="max-height:170px;background:#fff;">` + members.map(m=>{const av = m.avatar ? `<img src="${m.avatar}" alt="">` : escapeHtml((m.name||'?')[0].toUpperCase());return `<label class="group-member-item selected" style="cursor:pointer;background:#fff;"><div class="gmi-avatar">${av}</div><div class="gmi-name">${escapeHtml(m.name)}</div><input type="checkbox" value="${m.id}" checked style="width:20px;height:20px;accent-color:var(--primary);flex-shrink:0;" onchange="this.closest('.group-member-item').classList.toggle('selected', this.checked)"></label>`;}).join('') + `</div><div class="setting-sub" style="margin-bottom:4px;">每位被勾选的成员都会各自随机选择答案发到群里</div>`;
         }
     }
-    showModal('🎲 决策助手',`<label>你的问题</label><input type="search" id="decisionQuestion" placeholder="例如：今天我要不要去吃饭？" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="-webkit-appearance:none; appearance:none;">${memberHtml}<label>选项（一行一个，至少两个）</label><textarea id="decisionOptions" rows="4" placeholder="要&#10;不要" autocomplete="off" spellcheck="false"></textarea><label>发送延迟（1-10 秒）</label><input type="number" id="decisionDelay" value="3" min="1" max="10" step="1" autocomplete="off"><div class="setting-sub">单聊时对方会在设定延迟后随机选择一个答案发给你；群聊时每位被选中的成员都会回答</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-confirm" onclick="confirmDecision()">帮我决定</button></div>`);
+    const delayVal = data.replySettings.decisionDelay || 3;
+    const pickVal = data.replySettings.decisionPickCount || 1;
+    showModal('🎲 决策助手',`<label>你的问题</label><input type="search" id="decisionQuestion" placeholder="例如：今天我要不要去吃饭？" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="-webkit-appearance:none; appearance:none;">${memberHtml}<label>选项（一行一个，至少两个）</label><textarea id="decisionOptions" rows="4" placeholder="要&#10;不要" autocomplete="off" spellcheck="false"></textarea><div style="display:flex;gap:10px;margin-top:12px;"><div style="flex:1;"><label>延迟秒数（1-300）</label><input type="number" id="decisionDelay" value="${delayVal}" min="1" max="300" step="1" autocomplete="off"></div><div style="flex:1;"><label>要选几个答案</label><input type="number" id="decisionPickCount" value="${pickVal}" min="1" max="10" step="1" autocomplete="off"></div></div><div class="setting-sub">单聊时对方会在延迟后为你抽选答案；群聊时每位被选中的成员都会抽选回答</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-confirm" onclick="confirmDecision()">帮我决定</button></div>`);
 }
 function confirmDecision(){
     const question=document.getElementById('decisionQuestion').value.trim();
     const optionsStr=document.getElementById('decisionOptions').value;
     let delay=parseInt(document.getElementById('decisionDelay').value,10);
+    let pickCount=parseInt(document.getElementById('decisionPickCount').value,10);
+    
     if(!question){showToast('请输入问题');return;}
     if(!optionsStr||!optionsStr.trim()){showToast('请输入选项');return;}
-    if(isNaN(delay))delay=3;delay=clamp(delay,1,10);
+    
+    if(isNaN(delay)||delay<1)delay=3; if(delay>300)delay=300;
+    if(isNaN(pickCount)||pickCount<1)pickCount=1;
+    
+    // 保存记忆设置
+    data.replySettings.decisionDelay = delay;
+    data.replySettings.decisionPickCount = pickCount;
+    saveData(true);
+
     const options=optionsStr.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     if(options.length<2){showToast('请至少输入两个选项');return;}
+    if(pickCount > options.length) pickCount = options.length; // 最多全选
+
     const c = getActiveContact();
- if(c && c.blocked){ showToast('对方已被拉黑，无法回复'); return; }
+    if(c && c.blocked){ showToast('对方已被拉黑，无法回复'); return; }
     const cid = c ? c.id : null;
+    
     let targets = [];
     if(isGroup(c)){
         const checked = Array.from(document.querySelectorAll('#decisionMembers input[type=checkbox]:checked')).map(x=>x.value);
@@ -4448,25 +4578,34 @@ function confirmDecision(){
         targets = checked.map(id=>getContact(id)).filter(Boolean);
         if(!targets.length){showToast('所选成员不存在');return;}
     }
+    
     closeModal();showTypingIndicator(cid);scrollToBottomIfNear(150);
     showToast(`对方正在思考…（${delay} 秒后回复）`);
+    
+    const doPick = () => {
+        // 打乱数组后取前 pickCount 个（不重复）
+        const shuffled = [...options].sort(() => Math.random() - 0.5);
+        return shuffled.slice(0, pickCount);
+    };
+
     if(!targets.length){
-        const chosen=options[Math.floor(Math.random()*options.length)];
-        const reply=`关于「${question}」，我的答案是：${chosen}`;
-        scheduler.add(()=>{hideTypingIndicator(cid);addMessage('partner',reply,'text',null,false,false,'',cid);showToast('结果：'+chosen);},delay*1000,'decision');
+        const picked = doPick();
+        scheduler.add(()=>{
+            hideTypingIndicator(cid);
+            addMessage('partner', '', 'decision', null, false, false, '', cid, null, { decisionData: { question, options, picked } });
+            showToast('结果已出');
+        },delay*1000,'decision');
     }else{
         targets.forEach((m,i)=>{
-            const chosen=options[Math.floor(Math.random()*options.length)];
-            const reply=`关于「${question}」，我的答案是：${chosen}`;
+            const picked = doPick();
             scheduler.add(()=>{
                 if(i===0) hideTypingIndicator(cid);
-                addMessage('partner',reply,'text',null,false,false,m.name||'',cid,m.id);
+                addMessage('partner', '', 'decision', null, false, false, m.name||'', cid, m.id, { decisionData: { question, options, picked } });
                 if(i===targets.length-1) showToast('已收到所有人的选择');
             }, delay*1000 + i*800, 'decision_'+i);
         });
     }
 }
-
 // ======================================================================
 //  更多面板 / 图片
 // ======================================================================
@@ -5131,48 +5270,111 @@ function updateLetterMenuDot(){
 // ======================================================================
 function openDivination(){closePlusMenu();const panel=document.getElementById('divinationPanel');if(!panel)return;divinationOpen=true;panel.classList.add('open');renderDivinationPage();}
 function closeDivination(){const panel=document.getElementById('divinationPanel');if(panel)panel.classList.remove('open');divinationOpen=false;}
-function setDivType(t){divType=t;divDrawn=null;renderDivinationPage();}
+function setDivType(t){
+    divType=t;
+    clearTimeout(divShuffleTimer);
+    divDrawn=null;
+    divStage='input';
+    divRevealed=new Set();
+    divJustFlipped=-1;
+    renderDivinationPage();
+}
+
 function renderDivinationPage(){
     const body=document.getElementById('divBody');if(!body)return;
     let html='';
     html+=`<div class="div-type-switch"><div class="div-type-btn ${divType==='tarot'?'active':''}" onclick="setDivType('tarot')"><span class="d-icon">🃏</span>塔罗牌 · 78张</div><div class="div-type-btn ${divType==='lenormand'?'active':''}" onclick="setDivType('lenormand')"><span class="d-icon">🌸</span>雷诺曼 · 36张</div></div>`;
+
+    /* ===== 洗牌中 ===== */
+    if(divStage === 'shuffle'){
+        html+=`<div class="div-shuffle"><div class="div-shuffle-stack"><div class="div-shuffle-card"></div><div class="div-shuffle-card"></div><div class="div-shuffle-card"></div></div><div class="div-shuffle-text">正在洗牌……</div></div>`;
+        body.innerHTML=html;
+        return;
+    }
+
     if(!divDrawn){
         html+=`<div class="div-label">写下你的问题</div><textarea id="divQuestionInput" class="div-input" rows="3" placeholder="例如：我和ta的未来发展如何？"></textarea><button class="div-draw-btn" onclick="drawDivination()">🔮 抽 3 张牌</button><div class="div-hint">静心思考你的问题，然后点击抽牌<br>${divType==='tarot'?'塔罗牌会有正位 / 逆位':'雷诺曼牌均为正位'}</div>`;
+        body.innerHTML=html;
+        setTimeout(()=>{const ta=document.getElementById('divQuestionInput');if(ta&&divQuestion)ta.value=divQuestion;},50);
+        return;
+    }
+
+    /* ===== 已抽牌：逐张翻开 ===== */
+    const total = divDrawn.cards.length;
+    const allRevealed = divRevealed.size >= total;
+    html+=`<div class="div-label">你的问题</div><div class="div-result-box" style="margin-bottom:16px;color:#fff;font-size:14px;">${escapeHtml(divDrawn.question)}</div>`;
+    html+='<div class="div-card-row">';
+    divDrawn.cards.forEach((c,i)=>{
+        if(divRevealed.has(i)){
+            const anim = (divJustFlipped === i) ? ' flip-in' : '';
+            html+=`<div class="div-card${anim}"><div class="card-pos">第 ${i+1} 张</div><div class="card-icon"${c.reversed?' style="transform:rotate(180deg);"':''}>${c.icon}</div><div class="card-name">${escapeHtml(c.name)}</div>${divType==='tarot'?`<div class="card-orient ${c.reversed?'rev':'up'}">${c.reversed?'逆位':'正位'}</div>`:''}</div>`;
+        }else{
+            html+=`<div class="div-card div-card-back" onclick="divFlipCard(${i})"><div class="card-pos">第 ${i+1} 张</div><div class="div-card-back-icon">🔮</div><div class="card-name" style="opacity:.75;font-size:12px;">点击翻开</div></div>`;
+        }
+    });
+    html+='</div>';
+
+    if(allRevealed){
+        html+=`<div class="div-result-box">${escapeHtml(divDrawn.text)}</div><button class="div-copy-btn" onclick="copyDivination()">📋 复制结果文字</button><button class="div-reset-btn" onclick="resetDivination()">🔄 重新抽牌</button><div class="div-hint">占卜结果仅供娱乐参考 ✨</div>`;
     }else{
-        html+=`<div class="div-label">你的问题</div><div class="div-result-box" style="margin-bottom:16px;color:#fff;font-size:14px;">${escapeHtml(divDrawn.question)}</div>`;
-        html+='<div class="div-card-row">';
-        divDrawn.cards.forEach((c,i)=>{html+=`<div class="div-card" style="animation-delay:${i*0.15}s;"><div class="card-pos">第 ${i+1} 张</div><div class="card-icon"${c.reversed?' style="transform:rotate(180deg);"':''}>${c.icon}</div><div class="card-name">${escapeHtml(c.name)}</div>${divType==='tarot'?`<div class="card-orient ${c.reversed?'rev':'up'}">${c.reversed?'逆位':'正位'}</div>`:''}</div>`;});
-        html+=`</div><div class="div-result-box">${escapeHtml(divDrawn.text)}</div><button class="div-copy-btn" onclick="copyDivination()">📋 复制结果文字</button><button class="div-reset-btn" onclick="resetDivination()">🔄 重新抽牌</button><div class="div-hint">占卜结果仅供娱乐参考 ✨</div>`;
+        html+=`<div class="div-hint">点击卡片翻开 · 已翻开 ${divRevealed.size} / ${total}</div>`;
     }
     body.innerHTML=html;
-    if(!divDrawn)setTimeout(()=>{const ta=document.getElementById('divQuestionInput');if(ta&&divQuestion)ta.value=divQuestion;},50);
+    divJustFlipped = -1;
 }
+
+function divFlipCard(i){
+    if(divStage!=='reveal' || !divDrawn) return;
+    if(divRevealed.has(i)) return;
+    divRevealed.add(i);
+    divJustFlipped=i;
+    renderDivinationPage();
+    if(divRevealed.size >= divDrawn.cards.length){
+        setTimeout(()=>showToast('✨ 全部翻开'),320);
+    }
+}
+
 function drawDivination(){
     const ta=document.getElementById('divQuestionInput');
     const q=ta?ta.value.trim():'';
     if(!q){showToast('请先写下你的问题');if(ta)ta.focus();return;}
-    divQuestion=q;const cards=[];
-    if(divType==='tarot'){const pool=TAROT_DECK.slice();for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}pool.slice(0,3).forEach(c=>cards.push({name:c.name,icon:c.icon,suit:c.suit,reversed:Math.random()<0.5}));}
-    else{const pool=LENORMAND_DECK.slice();for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}pool.slice(0,3).forEach(c=>cards.push({name:c.n,icon:c.e,reversed:false}));}
+    divQuestion=q;
+    const cards=[];
+    if(divType==='tarot'){
+        const pool=TAROT_DECK.slice();
+        for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+        pool.slice(0,3).forEach(c=>cards.push({name:c.name,icon:c.icon,suit:c.suit,reversed:Math.random()<0.5}));
+    }else{
+        const pool=LENORMAND_DECK.slice();
+        for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+        pool.slice(0,3).forEach(c=>cards.push({name:c.n,icon:c.e,reversed:false}));
+    }
     let text=`【问题】${q}\n【牌阵】${divType==='tarot'?'塔罗牌 · 三张':'雷诺曼 · 三张'}\n\n`;
     cards.forEach((c,i)=>{const orient=(divType==='tarot'&&c.reversed)?'（逆位）':'';text+=`第 ${i+1} 张：${c.name}${orient}\n`;});
     text+='\n—— 临冬 · 占卜 ——';
-    divDrawn={cards,question:q,text};renderDivinationPage();
-}
-function resetDivination(){divDrawn=null;renderDivinationPage();}
-function copyDivination(){
-    if(!divDrawn){showToast('还没有结果');return;}
-    const txt=divDrawn.text;
-    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(()=>showToast('✅ 已复制到剪贴板')).catch(()=>fallbackCopy(txt));
-    else fallbackCopy(txt);
-}
-function fallbackCopy(txt){
-    const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.left='-9999px';
-    document.body.appendChild(ta);ta.select();
-    try{const ok=document.execCommand('copy');showToast(ok?'✅ 已复制到剪贴板':'复制失败');}catch(e){showToast('复制失败');}
-    document.body.removeChild(ta);
+
+    divDrawn={cards,question:q,text};
+    divRevealed=new Set();
+    divJustFlipped=-1;
+    divStage='shuffle';
+    renderDivinationPage();
+
+    clearTimeout(divShuffleTimer);
+    divShuffleTimer=setTimeout(()=>{
+        if(!divDrawn) return;
+        divStage='reveal';
+        renderDivinationPage();
+    },1800);
 }
 
+function resetDivination(){
+    clearTimeout(divShuffleTimer);
+    divDrawn=null;
+    divStage='input';
+    divRevealed=new Set();
+    divJustFlipped=-1;
+    renderDivinationPage();
+}
 // ======================================================================
 //  查岗
 // ======================================================================
