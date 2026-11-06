@@ -2129,9 +2129,9 @@ function addMessage(sender,content,type,replyTo,silent,isAuto,senderName,contact
 
     saveData(true);
 
-    if(sender === 'partner' && !isActive){ updateNavBadge(); }
-        if(isActive){
-        appendMessageToDOM(msg);
+        if(sender === 'partner' && !isActive){ updateNavBadge(); }
+    if(isActive){
+        renderMessagesNow();
         if(sender === 'me' || wasNearBottom){
             _chatAutoScrollUntil = Date.now() + 1500;
             requestAnimationFrame(scrollToBottomImmediate);
