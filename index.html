@@ -611,7 +611,7 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
                 <button class="tool-btn" onclick="toggleMorePanel(event)" title="更多" style="font-size:26px;color:var(--primary);"><?xml version="1.0" encoding="UTF-8"?><svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 44C35.0457 44 44 35.0457 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/><path d="M24 16V32" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 24L32 24" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                 <div class="input-wrap"><textarea id="msgInput" rows="1" placeholder="输入消息..." maxlength="2000"></textarea></div>
                 <button class="tool-btn" onclick="toggleEmojiPanel()" title="表情">🤍</button>
-                <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+                <button class="send-btn" id="sendBtn">➤</button>
             </div>
             <div id="morePanel">
                 <div class="more-item" onclick="onMoreDecision()"><span class="mi-icon"><?xml version="1.0" encoding="UTF-8"?><svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M39 6H9C7.34315 6 6 7.34315 6 9V39C6 40.6569 7.34315 42 9 42H39C40.6569 42 42 40.6569 42 39V9C42 7.34315 40.6569 6 39 6Z" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/><path d="M24 28.625V24.625C27.3137 24.625 30 21.9387 30 18.625C30 15.3113 27.3137 12.625 24 12.625C20.6863 12.625 18 15.3113 18 18.625" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path fill-rule="evenodd" clip-rule="evenodd" d="M24 37.625C25.3807 37.625 26.5 36.5057 26.5 35.125C26.5 33.7443 25.3807 32.625 24 32.625C22.6193 32.625 21.5 33.7443 21.5 35.125C21.5 36.5057 22.6193 37.625 24 37.625Z" fill="#333"/></svg></span><span>决策助手</span></div>
@@ -1003,29 +1003,31 @@ function saveNow(){
     data._updatedAt = Date.now();
     let json;
     try{ json = JSON.stringify(data); }catch(e){ return; }
+
+    // ⭐ 主存储：完整数据 → IndexedDB（容量 GB 级，异步不阻塞主线程）
     try{ idbSet('data', json); }catch(e){}
-    try{
-        localStorage.setItem(STORAGE_KEY, json);
-        try{ localStorage.setItem(BACKUP_KEY, json); }catch(e){}
-        _saveFailWarned = false;
-        return;
-    }catch(e){}
+
+    // 兜底存储：localStorage 只写精简版（每联系人最多 200 条 + 大字段抽到 IDB）
     try{
         const slim = buildSlimData(data);
         const slimJson = JSON.stringify(slim);
         localStorage.setItem(STORAGE_KEY, slimJson);
-        if(!_saveFailWarned){ _saveFailWarned = true; showToast('⚠️ 存储空间紧张，已精简保存（完整数据已同步到本地镜像）'); }
+        try{ localStorage.setItem(BACKUP_KEY, slimJson); }catch(e){}
+        _saveFailWarned = false;
         return;
-    }catch(e2){}
-    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
-    if(!_saveFailWarned){ _saveFailWarned = true; showToast('⚠️ 本地存储写入失败，完整数据已保存到镜像备份'); }
-}
+    }catch(e){}
 
+    // 精简版也失败（极端情况）→ 清掉 localStorage，完全依赖 IDB
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    if(!_saveFailWarned){
+        _saveFailWarned = true;
+        showToast('ℹ️ localStorage 已满，完整数据已保存在 IndexedDB');
+    }
+}
 function flushSave(){
     if(_saveTimer){ clearTimeout(_saveTimer); _saveTimer = null; }
     saveNow();
 }
-
 function saveData(immediate){
     if(immediate){
         if(_saveTimer){ clearTimeout(_saveTimer); _saveTimer = null; }
@@ -1033,9 +1035,15 @@ function saveData(immediate){
         return;
     }
     if(_saveTimer) clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(()=>{ _saveTimer = null; saveNow(); }, 16);
+    _saveTimer = setTimeout(()=>{
+        _saveTimer = null;
+        if(window.requestIdleCallback){
+            requestIdleCallback(()=>saveNow(), {timeout: 2000});
+        }else{
+            setTimeout(saveNow, 0);
+        }
+    }, 16);
 }
-
 function buildSlimData(src){
     const slim = {
         _slimmed: true,
@@ -1066,6 +1074,7 @@ function buildSlimData(src){
             if(nc.avatar){ contactAssets.push({type:'contact_avatar', id:c.id, data:nc.avatar}); nc.avatar=''; }
             if(nc.bgImage){ contactAssets.push({type:'contact_bg', id:c.id, data:nc.bgImage}); nc.bgImage=''; }
             if(Array.isArray(nc.messages)){
+                if(nc.messages.length > 200) nc.messages = nc.messages.slice(-200);
                 nc.messages = nc.messages.map(m=>{
                     if(!m) return m;
                     if((m.type==='image'||m.type==='emoji') && m.content && String(m.content).length>500){
@@ -1080,7 +1089,7 @@ function buildSlimData(src){
                 });
             }
             slim.contacts.push(nc);
-        });
+    });
         if(contactAssets.length){ try{ idbSet('contact_assets', contactAssets); }catch(e){} }
     }
     if(Array.isArray(src.emojis)){
@@ -1647,7 +1656,8 @@ function switchPage(page){
     Object.values(map).forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('active');});
     const target = document.getElementById(map[page]);
     if(target) target.classList.add('active');
-    closePlusMenu();
+       closePlusMenu();
+    try{ closeLetter(); closeMusic(); closeDivination(); closeClock(); closePlusPanel(); }catch(e){}
     if(page !== 'chat') closeEmojiPanel();
     const nav = document.getElementById('bottom-nav');
     if(nav) nav.style.display = (page === 'chat' || page === 'chatinfo') ? 'none' : '';
@@ -2138,7 +2148,7 @@ function addMessage(sender,content,type,replyTo,silent,isAuto,senderName,contact
     const isActive = (data.activeContactId === c.id) && isChatPageVisible();
     const wasNearBottom = isActive && isNearBottom(150);
     c.messages.push(msg);
-    if(c.messages.length > 1500) c.messages = c.messages.slice(-1500);
+   if(c.messages.length > 5000) c.messages = c.messages.slice(-5000);
     if(sender === 'partner' && !isActive){ c.unread = (c.unread || 0) + 1; }
 
     // ⬇️ 由同步全量保存改为 16ms 防抖保存，避免每条消息都 JSON.stringify 整个 data
@@ -2175,8 +2185,8 @@ function sendMessage(){
     const input = document.getElementById('msgInput');
     const text = input.value.trim(); if(!text) return;
     input.value = '';
-requestAnimationFrame(()=>{ input.style.height = 'auto'; });
-        addMessage('me',text,'text',currentReplyTarget||null);
+    input.style.height = 'auto';
+    addMessage('me',text,'text',currentReplyTarget||null);
     if(c.blocked) notifyBlockedOnSend(c);
     cancelReply();
     showTypingIndicator(c.id);
@@ -3802,6 +3812,43 @@ function renderSettingsSubPage(key){
     else if(key === 'data') body.innerHTML = buildDataSettingsHtml();
     else if(key === 'help') body.innerHTML = buildHelpSettingsHtml();
 }
+async function showStorageDiagnosis(){
+    let msgSize=0, imgCount=0, emojiSize=0, musicSize=0, avatarSize=0, totalMsgs=0;
+    (data.contacts||[]).forEach(c=>{
+        (c.messages||[]).forEach(m=>{
+            totalMsgs++;
+            if(m.content) msgSize += m.content.length;
+            if((m.type==='image'||m.type==='emoji') && m.content) imgCount++;
+        });
+        if(c.avatar) avatarSize += c.avatar.length;
+        if(c.bgImage) avatarSize += c.bgImage.length;
+    });
+    if(data.user && data.user.avatar) avatarSize += data.user.avatar.length;
+    (data.emojis||[]).forEach(e=>{ if(e.dataUrl) emojiSize += e.dataUrl.length; });
+    ((data.music&&data.music.list)||[]).forEach(s=>{ if(s.url) musicSize += s.url.length; });
+
+    const fmt = n => n > 1024*1024 ? (n/1024/1024).toFixed(2)+' MB' : (n/1024).toFixed(1)+' KB';
+
+    // 估算 IDB 占用
+    let idbSize = 0;
+    try{
+        const raw = await idbGet('data');
+        if(raw) idbSize = raw.length;
+    }catch(e){}
+
+    showModal('📊 存储占用明细', `
+        <div class="setting-sub" style="line-height:2;font-size:13px;">
+            <div>💬 聊天消息：<b>${fmt(msgSize)}</b>（${totalMsgs} 条，含 ${imgCount} 张图片）</div>
+            <div>😊 表情包：<b>${fmt(emojiSize)}</b>（${(data.emojis||[]).length} 个）</div>
+            <div>🎵 音乐：<b>${fmt(musicSize)}</b>（${((data.music&&data.music.list)||[]).length} 首）</div>
+            <div>👤 头像/背景：<b>${fmt(avatarSize)}</b></div>
+            <hr style="margin:8px 0;">
+            <div>📦 IndexedDB 占用：<b>${fmt(idbSize)}</b>（完整数据）</div>
+            <div style="color:#10b981;margin-top:6px;">✅ 聊天记录存储无上限，可放心使用</div>
+        </div>
+        <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">关闭</button></div>
+    `);
+}
 function buildStatusSettingsHtml(){
     const def = defaultData();
     const s = Object.assign({}, def.replySettings, data.replySettings || {});
@@ -3906,6 +3953,10 @@ html += `<div class="setting-item" style="margin-top:10px;"><span class="label">
 }
 function buildDataSettingsHtml(){
     let html = '<div class="plus-body-inner">';
+html += `<div class="sub-group-title">📊 存储占用</div>
+<div class="setting-item" style="flex-direction:column;align-items:stretch;gap:10px;">
+    <button class="btn-outline" style="justify-content:center;" onclick="showStorageDiagnosis()">查看占用明细</button>
+</div>`;
     html += `<div class="sub-group-title">📤 导出 / 导入</div><div class="setting-item" style="flex-direction:column;align-items:stretch;gap:10px;"><span class="label">备份与恢复</span><button class="btn-primary" style="justify-content:center;" onclick="showExportOptions()">📤 选择性导出</button><button class="btn-primary" style="justify-content:center;background:#5B8DEF;" onclick="exportData()">📤 一键导出全部</button><button class="btn-outline" style="justify-content:center;" onclick="importData()">📥 导入数据</button></div><div class="sub-group-title">🧹 清理数据</div><div class="setting-item" style="flex-direction:column;align-items:stretch;gap:10px;"><span class="label">清理数据</span><button class="btn-danger" style="justify-content:center;" onclick="clearChatOnly()">🧹 仅清空所有聊天记录</button><button class="btn-danger" style="justify-content:center;" onclick="clearAllData()">🗑 清空全部数据</button></div><div class="setting-sub">清空全部数据会删除所有聊天记录、字卡、查岗字卡、表情、信件、设置等，且不可恢复，请谨慎操作。</div>`;
     html += '</div>';
     return html;
@@ -4722,7 +4773,17 @@ function maybeMusicInteraction(){
     if(!m.list||!m.list.length)return;
     const prob=Number(m.inviteProbability);
     if(isNaN(prob)||prob<=0)return;
-    if(Math.random()>=prob)return;
+        if(Math.random()>=prob)return;
+    // 对方已获得控制权 → 按概率切歌 / 暂停
+    if(m.controlAllowed && Math.random() < (Number(m.skipPauseProbability)||0)){
+        setTimeout(()=>{
+            const a = getMusicAudio();
+            if(!a) return;
+            if(Math.random() < 0.5){ musicNext(); showToast('🎧 对方切了一首歌'); }
+            else if(!a.paused){ a.pause(); showToast('🎧 对方暂停了播放'); }
+        }, 1500 + Math.random()*3000);
+        return;
+    }
     setTimeout(()=>{if(!callState)showMusicInvite();},1500+Math.random()*2500);
 }
 function showMusicInvite(){
@@ -5552,7 +5613,7 @@ async function restoreFromIDB(force){
 
         const localTime = (localParsed && localParsed._updatedAt) || 0;
         const idbTime = (idbParsed && idbParsed._updatedAt) || 0;
-        const useIDB = force || (!localParsed) || (idbParsed && idbTime > localTime);
+       const useIDB = force || (!localParsed) || (idbParsed && idbTime >= localTime);
 
         if(useIDB && idbParsed && typeof idbParsed==='object' && !Array.isArray(idbParsed)){
             const hasData = (idbParsed.contacts && idbParsed.contacts.length) ||
