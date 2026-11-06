@@ -860,7 +860,9 @@ let typingContacts = new Set();
 let currentSettingsSub = null;
 let _notifPermissionRequested = false;
 let _msgRenderStart = null;
-
+let _chatAutoScrollUntil = 0;     // 自动滚底窗口截止时间
+let _chatScrollGuardBound = false;
+let _suppressAutoScrollOnce = false;
 /* === PWA 安装 === */
 let deferredInstallPrompt = null;
 
@@ -1907,6 +1909,7 @@ function toggleMsgActions(e,id){
 }
 function jumpToMessage(e, refId){
     if(e){ e.stopPropagation(); e.preventDefault(); }
+    _chatAutoScrollUntil = 0;
     const c = getActiveContact(); if(!c) return;
     const msgs = c.messages || [];
     const idx = msgs.findIndex(m=>m.id===refId);
@@ -1963,7 +1966,6 @@ function toggleRecallMessage(el, msgId){
         el.dataset.expanded = 'true';
     }
 }
-
 function renderMessagesNow(){
     const area = document.getElementById('message-area');
     const c = getActiveContact();
@@ -1972,16 +1974,20 @@ function renderMessagesNow(){
     area.style.backgroundImage = bg ? `url(${bg})` : 'none';
     applyChatBubbleVars(c);
     const msgs = c.messages || [];
-if(msgs.length === 0){
+    if(msgs.length === 0){
         area.innerHTML = '<div class="empty-state" style="padding-top:60px;"><div class="empty-icon">💬</div><div>还没有消息，开始聊天吧</div></div>';
+        ensureChatScrollGuard(area);
         if(typingContacts.has(c.id)) showTypingIndicator(c.id);
         return;
     }
     let startIdx = Math.max(0, msgs.length - 150);
-    if(_msgRenderStart != null && _msgRenderStart >= 0 && _msgRenderStart < msgs.length){
+    const isJumpRender = (_msgRenderStart != null && _msgRenderStart >= 0 && _msgRenderStart < msgs.length);
+    if(isJumpRender){
         startIdx = _msgRenderStart;
     }
     _msgRenderStart = null;
+    const suppressAutoScroll = _suppressAutoScrollOnce;
+    _suppressAutoScrollOnce = false;
     let html = '', lastDate = '';
     for(let i=startIdx;i<msgs.length;i++){
         const m = msgs[i]; if(!m || !m.timestamp) continue;
@@ -1991,27 +1997,61 @@ if(msgs.length === 0){
     }
     area.innerHTML = html;
     if(typingContacts.has(c.id)) showTypingIndicator(c.id);
-    area.scrollTop = area.scrollHeight;
-}
-function appendMessageToDOM(msg){
-    const area = document.getElementById('message-area');
-    const c = getActiveContact(); if(!area || !c) return;
-    if(area.querySelector(`.msg-group[data-id="${msg.id}"]`)) return;
-    const empty = area.querySelector('.empty-state'); if(empty) empty.remove();
-    const msgs = c.messages;
-    const idx = msgs.length - 1;
-    let html = '';
-    if(idx === 0) html += `<div class="msg-time-divider"><span>${isToday(msg.timestamp)?'今天':formatDate(msg.timestamp)}</span></div>`;
-    else{ const prev = msgs[idx-1]; if(prev && formatDate(prev.timestamp) !== formatDate(msg.timestamp)) html += `<div class="msg-time-divider"><span>${isToday(msg.timestamp)?'今天':formatDate(msg.timestamp)}</span></div>`; }
-    html += buildMessageHtml(msg, msgs);
-    const typing = area.querySelector('#typingIndicator');
-    if(typing) typing.insertAdjacentHTML('beforebegin', html);
-    else area.insertAdjacentHTML('beforeend', html);
+
+    ensureChatScrollGuard(area);
+    if(isJumpRender || suppressAutoScroll){
+        _chatAutoScrollUntil = 0;
+    }else{
+        scrollChatToBottomSmooth(area);
+        bindChatImagesAutoScroll(area);
+    }
 }
 function isNearBottom(t){const area=document.getElementById('message-area');if(!area)return true;t=t||120;return (area.scrollHeight-area.scrollTop-area.clientHeight)<t;}
 function scrollToBottomImmediate(){const area=document.getElementById('message-area');if(area)area.scrollTop=area.scrollHeight;}
 function scrollToBottomIfNear(t){if(isNearBottom(t))requestAnimationFrame(scrollToBottomImmediate);}
 
+/* === 打开聊天后稳健滚到底部（解决图片异步加载导致停在中间） === */
+function scrollChatToBottomSmooth(area){
+    if(!area) return;
+    _chatAutoScrollUntil = Date.now() + 2500;
+    const doScroll = ()=>{
+        if(Date.now() > _chatAutoScrollUntil) return;
+        try{ area.scrollTop = area.scrollHeight; }catch(e){}
+    };
+    doScroll();
+    requestAnimationFrame(doScroll);
+    setTimeout(doScroll, 30);
+    setTimeout(doScroll, 80);
+    setTimeout(doScroll, 160);
+    setTimeout(doScroll, 300);
+    setTimeout(doScroll, 600);
+    setTimeout(doScroll, 1000);
+}
+
+/* 给聊天区域里未加载完的图片补一个 load 回调，加载完后再滚到底 */
+function bindChatImagesAutoScroll(area){
+    if(!area) return;
+    const imgs = area.querySelectorAll('img');
+    imgs.forEach(img=>{
+        if(img.complete && img.naturalHeight > 0) return;
+        const onDone = ()=>{
+            if(Date.now() < _chatAutoScrollUntil || isNearBottom(400)){
+                try{ area.scrollTop = area.scrollHeight; }catch(e){}
+            }
+        };
+        img.addEventListener('load', onDone, {once:true});
+        img.addEventListener('error', onDone, {once:true});
+    });
+}
+/* 用户一旦手动操作聊天区域，立即取消自动滚底（避免和上滑看历史打架） */
+function ensureChatScrollGuard(area){
+    if(!area || _chatScrollGuardBound) return;
+    _chatScrollGuardBound = true;
+    const cancel = ()=>{ _chatAutoScrollUntil = 0; };
+    area.addEventListener('touchstart', cancel, {passive:true});
+    area.addEventListener('wheel', cancel, {passive:true});
+    area.addEventListener('mousedown', cancel, {passive:true});
+}
 function isChatPageVisible(){
     const el = document.getElementById('pageChat');
     return !!(el && el.classList.contains('active'));
@@ -2090,9 +2130,12 @@ function addMessage(sender,content,type,replyTo,silent,isAuto,senderName,contact
     saveData(true);
 
     if(sender === 'partner' && !isActive){ updateNavBadge(); }
-    if(isActive){
+        if(isActive){
         appendMessageToDOM(msg);
-        if(sender === 'me' || wasNearBottom) requestAnimationFrame(scrollToBottomImmediate);
+        if(sender === 'me' || wasNearBottom){
+            _chatAutoScrollUntil = Date.now() + 1500;
+            requestAnimationFrame(scrollToBottomImmediate);
+        }
     }else{
         const contactsPage = document.getElementById('pageContacts');
         if(contactsPage && contactsPage.classList.contains('active')) renderContacts();
@@ -3024,6 +3067,7 @@ function doChatSearch(kw){
 function jumpToSearchResult(msgId){
     closeModal();
     const c = getActiveContact(); if(!c) return;
+    _suppressAutoScrollOnce = true;
     switchPage('chat');
     setTimeout(()=>{
         const msgs = c.messages || [];
