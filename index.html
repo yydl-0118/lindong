@@ -1104,41 +1104,77 @@ function startKeepAliveAudio(){
     try { startTickWorker(); } catch (e) {}
     requestWakeLock();
     applyKeepAliveAudio();
-       const a = keepAliveAudioEl;
+    const st = data.settings || {};
+    
+    // ⭐ 核心杀手锏 1：启用 MediaSession，让系统以为你是一个原生音乐播放器
+    try {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: '临冬正在后台守候',
+                artist: '请勿关闭，保持消息接收',
+                album: '临冬',
+                artwork: [{ src: 'icon.png', sizes: '192x192', type: 'image/png' }]
+            });
+            navigator.mediaSession.playbackState = "playing";
+            // 锁定状态：就算你在通知栏误点了暂停，它也会立刻强行恢复
+            navigator.mediaSession.setActionHandler('pause', () => {
+                 navigator.mediaSession.playbackState = "playing";
+            });
+        }
+    } catch(e){}
+
+    const a = keepAliveAudioEl;
+    
+    // ⭐ 核心杀手锏 2：防顶掉机制（解决你听歌时的担忧）
+    if (a && !a._keepAliveBound) {
+        a._keepAliveBound = true;
+        a.addEventListener('pause', () => {
+            // 如果保活是开着的，并且你【没有】在临冬里听歌（说明是被网易云/微信语音等外部App顶掉的）
+            if (data.settings.keepAlive && !(data.music && data.music.playing)) {
+                setTimeout(() => {
+                    try {
+                        a.volume = 0.001; // 变成极低音量（静音模式），避免和你的歌抢声音
+                        a.play().catch(()=>{}); // 强行复活，继续骗系统
+                    } catch(e){}
+                }, 1000); // 等1秒再抢，给外部App让路
+            }
+        });
+    }
+
+    // 正常启动播放
     if (a) {
         const tryPlay = () => {
+            // 如果你在临冬里放歌，就不需要这个假音频出声了，直接设极低音量
+            if (data.music && data.music.playing) {
+                a.volume = 0.001;
+            }
             const p = a.play();
             if (p && p.catch) p.catch(()=>{});
         };
         tryPlay();
-        // 页面从后台恢复时再补一次，防止被系统暂停
         setTimeout(() => { if (a.paused) tryPlay(); }, 1200);
         setTimeout(() => { if (a.paused) tryPlay(); }, 4000);
     }
+
     if (keepAliveTimer) clearInterval(keepAliveTimer);
     keepAliveTimer = setInterval(() => {
-        const st = data.settings || {};
         if (!st.keepAlive) return;
         if (!_tickWorker) { try { startTickWorker(); } catch (e) {} }
         if (!wakeLock && document.visibilityState === 'visible') { requestWakeLock(); }
-        if (st.keepFgquiet && document.visibilityState === 'visible') {
-            if (keepAliveFgQuietTimer) clearTimeout(keepAliveFgQuietTimer);
-            keepAliveFgQuietTimer = setTimeout(() => {
-                const aa = keepAliveAudioEl;
-                if (aa && aa.paused) {
-                    const pp = aa.play();
-                    if (pp && pp.catch) pp.catch(() => {});
-                }
-            }, 15000);
+        
+        // 每 15 秒检查一次，如果被外部顶掉了，顺手踢一脚让它重新播放
+        if (a && a.paused && !(data.music && data.music.playing)) {
+             a.volume = 0.001;
+             a.play().catch(()=>{});
         }
         updateKeepAliveState();
     }, 15000);
+    
     if (data.settings.keepFgquiet && document.visibilityState === 'visible' && a) {
         try { a.pause(); } catch (e) {}
     }
     updateKeepAliveState();
 }
-
 function stopKeepAliveAudio(){
     if (keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
     if (keepAliveFgQuietTimer) { clearTimeout(keepAliveFgQuietTimer); keepAliveFgQuietTimer = null; }
