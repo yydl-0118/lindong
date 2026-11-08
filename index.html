@@ -15,26 +15,6 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icon.png">
 <title>临冬</title>
 <style>
-/* ===== 前台横幅 ===== */
-.desk-pop-wrap{
-    position:fixed;top:calc(10px + var(--safe-top));left:0;right:0;
-    z-index:99998;display:flex;flex-direction:column;gap:8px;
-    padding:0 12px;pointer-events:none;max-width:480px;margin:0 auto;
-}
-.desk-pop{
-    pointer-events:auto;background:rgba(255,255,255,.96);
-    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-    border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.18);
-    padding:12px 14px;display:flex;align-items:flex-start;gap:10px;
-    transform:translateY(-12px);opacity:0;
-    transition:transform .24s ease,opacity .24s ease;
-    border:1px solid rgba(0,0,0,.06);cursor:pointer;
-}
-.desk-pop.show{transform:translateY(0);opacity:1;}
-.desk-pop-main{flex:1;min-width:0;}
-.desk-pop-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.desk-pop-body{font-size:12px;line-height:1.5;color:var(--text-light);word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-.desk-pop-x{background:none;border:none;font-size:18px;line-height:1;color:var(--text-light);cursor:pointer;padding:0 2px;flex-shrink:0;}
 #splash{position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#FFE4E9,#FFD5DE 55%,#FFE9EE);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .65s,visibility .65s;gap:0}
 #splash.hide{opacity:0;visibility:hidden;pointer-events:none}
 #splash .splash-icon{position:relative;width:min(46vw,170px);height:min(46vw,170px);border-radius:50%;overflow:hidden;background:linear-gradient(160deg,#FFF6F8,#FFD5DE);box-shadow:0 18px 50px rgba(255,140,165,.4);display:flex;align-items:center;justify-content:center;animation:splashFloat 3.2s ease-in-out infinite;margin-bottom:34px;border:4px solid #fff}
@@ -855,7 +835,6 @@ body.kb-open #app {
 </div>
 
 <div id="modalContainer"></div>
-<div class="desk-pop-wrap" id="deskPopWrap"></div>
 <div id="toast" class="toast hide"></div>
 <style id="customCssTag"></style>
 <style id="customFontTag"></style>
@@ -1076,8 +1055,10 @@ function makeSilentWavDataUrl(seconds){
     dv.setUint16(22, 1, true); dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true);
     dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
     writeStr(36, 'data'); dv.setUint32(40, n * 2, true);
+        // 极低幅度正弦波（非静音！防止被浏览器识别为无声而暂停节流）
     for (let i = 0; i < n; i++) {
-        dv.setInt16(44 + i * 2, (i % 2 === 0) ? 1 : -1, true);
+        const val = Math.round(Math.sin(i * 2 * Math.PI * 20 / sr) * 120);
+        dv.setInt16(44 + i * 2, val, true);
     }
     const bytes = new Uint8Array(buf);
     let bin = '';
@@ -1111,23 +1092,28 @@ function applyKeepAliveAudio(){
     const src = getKeepAliveSrc();
     if (a.src !== src) { a.src = src; try { a.load(); } catch (e) {} }
     a.loop = true;
-    if (st.keepNoduck || !st.keepAudioData) {
-        a.muted = true;
-        a.volume = 0;
+    // 关键：绝不能用 muted / volume=0，否则浏览器判定页面"没在放声音"继续节流
+    a.muted = false;
+    if (st.keepNoduck) {
+        a.volume = 0.001;                // 极低音量，几乎听不到，但 audible=true
     } else {
-        a.muted = false;
-        a.volume = 1;
+        a.volume = st.keepAudioData ? 1 : 0.01;
     }
 }
-
 function startKeepAliveAudio(){
     try { startTickWorker(); } catch (e) {}
     requestWakeLock();
     applyKeepAliveAudio();
-    const a = keepAliveAudioEl;
+       const a = keepAliveAudioEl;
     if (a) {
-        const p = a.play();
-        if (p && p.catch) p.catch(() => {});
+        const tryPlay = () => {
+            const p = a.play();
+            if (p && p.catch) p.catch(()=>{});
+        };
+        tryPlay();
+        // 页面从后台恢复时再补一次，防止被系统暂停
+        setTimeout(() => { if (a.paused) tryPlay(); }, 1200);
+        setTimeout(() => { if (a.paused) tryPlay(); }, 4000);
     }
     if (keepAliveTimer) clearInterval(keepAliveTimer);
     keepAliveTimer = setInterval(() => {
@@ -1180,107 +1166,6 @@ function testKeepAlive(){
     updateKeepAliveState();
     showToast('保活已触发，请切到后台 30 秒后再回来查看消息');
 }
-
-/* ===== 前台横幅 ===== */
-const _deskPopState = {items: [], seq: 0};
-
-function showDeskPopup(title, body, contactId, source){
-    if(!data.settings || !data.settings.deskPopup) return;
-    if(document.hidden) return;
-    const st = data.settings;
-    if(st.deskPopSrc && st.deskPopSrc[source] === false) return;
-
-    const wrap = document.getElementById('deskPopWrap');
-    if(!wrap) return;
-
-    const maxRows = st.deskPopRows === 2 ? 2 : 1;
-
-    if(maxRows === 1){
-        _deskPopState.items = [];
-        wrap.innerHTML = '';
-    } else {
-        _deskPopState.items = _deskPopState.items.filter(it => it.source !== source);
-        if(_deskPopState.items.length >= 2) _deskPopState.items.shift();
-    }
-
-    const id = 'dp_' + (++_deskPopState.seq);
-    _deskPopState.items.push({id, source, contactId});
-
-    const el = document.createElement('div');
-    el.className = 'desk-pop';
-    el.dataset.id = id;
-    el.dataset.source = source;
-    el.innerHTML = `
-        <div class="desk-pop-main">
-            <div class="desk-pop-title">${escapeHtml(title)}</div>
-            <div class="desk-pop-body">${escapeHtml(body)}</div>
-        </div>
-        ${st.deskPopClose ? '<button class="desk-pop-x" aria-label="关闭">×</button>' : ''}
-    `;
-
-    el.addEventListener('click', (e)=>{
-        if(e.target.closest('.desk-pop-x')){ removeDeskPopup(el); return; }
-        try{
-            if(contactId && getContact(contactId)){ openChat(contactId); }
-            else { switchPage('contacts'); }
-        }catch(err){}
-        removeDeskPopup(el);
-    });
-
-    bindDeskPopupSwipe(el);
-
-    const auto = setTimeout(()=>removeDeskPopup(el), 5200);
-    el._autoTimer = auto;
-
-    wrap.appendChild(el);
-    while(wrap.children.length > maxRows){ wrap.removeChild(wrap.firstChild); }
-
-    requestAnimationFrame(()=>el.classList.add('show'));
-}
-
-function removeDeskPopup(el){
-    if(!el) return;
-    if(el._autoTimer) clearTimeout(el._autoTimer);
-    if(el._ldMove) document.removeEventListener('mousemove', el._ldMove);
-    if(el._ldUp) document.removeEventListener('mouseup', el._ldUp);
-    el.classList.remove('show');
-    setTimeout(()=>{ try{ el.remove(); }catch(e){} }, 220);
-    _deskPopState.items = _deskPopState.items.filter(it => it.id !== el.dataset.id);
-}
-
-function bindDeskPopupSwipe(el){
-    let startX = 0, startY = 0, dragging = false, dx = 0;
-    const onDown = (e)=>{
-        const p = e.touches ? e.touches[0] : e;
-        startX = p.clientX; startY = p.clientY; dragging = true; dx = 0;
-        el.style.transition = 'none';
-    };
-    const onMove = (e)=>{
-        if(!dragging) return;
-        const p = e.touches ? e.touches[0] : e;
-        dx = p.clientX - startX;
-        if(Math.abs(dx) > 4 && Math.abs(dx) > Math.abs(p.clientY - startY)){
-            el.style.transform = `translateX(${dx}px)`;
-            el.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 220));
-            if(e.cancelable) e.preventDefault();
-        }
-    };
-    const onUp = ()=>{
-        if(!dragging) return;
-        dragging = false;
-        el.style.transition = '';
-        if(dx > 70){ removeDeskPopup(el); }
-        else { el.style.transform = ''; el.style.opacity = ''; }
-    };
-        el.addEventListener('touchstart', onDown, {passive: true});
-    el.addEventListener('touchmove', onMove, {passive: false});
-    el.addEventListener('touchend', onUp);
-    el.addEventListener('mousedown', onDown);
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    el._ldMove = onMove;
-    el._ldUp = onUp;
-}
 document.addEventListener('visibilitychange', () => {
     const st = data.settings || {};
     if (!st.keepAlive) return;
@@ -1305,29 +1190,6 @@ async function showSystemNotification(msg, force, contactId){
     const source = (msg && msg._source) ||
         (msg && msg.type === 'call' ? 'call' :
         (msg && msg.type === 'music' ? 'music' : 'chat'));
-
-    // ---------- 前台横幅（页面可见时） ----------
-    if(!document.hidden && !force && st.deskPopup){
-        if(st.deskPopSrc && st.deskPopSrc[source] === false) { /* 这一类关了，继续走系统通知 */ }
-        else {
-            let body = msg.content || '';
-            if(msg.type === 'decision') body = '[抉择] ' + (msg.decisionData?.question || '');
-            else if(msg.type === 'emoji' || msg.type === 'image') body = '[图片]';
-            else if(msg.type === 'pat') body = (msg.content || '');
-            else if(msg.type === 'music') body = msg.content || '🎧 听歌邀请';
-            else if(msg.type === 'call') body = msg.content || '📞 来电';
-            if(body.length > 90) body = body.slice(0, 90) + '…';
-
-            const contact = contactId ? getContact(contactId) : getActiveContact();
-            const contactName = contact ? (contact.name || '新消息') : '新消息';
-            const title = (contact && isGroup(contact) && msg.senderName)
-                ? `${contactName} · ${msg.senderName}`
-                : contactName;
-
-            showDeskPopup(title, body, contactId || (contact ? contact.id : null), source);
-            return;
-        }
-    }
 
     if(!st.notificationEnabled) return;
     if(!('Notification' in window)) return;
@@ -1735,23 +1597,37 @@ function updateNavBadge(){
 // ======================================================================
 //  调度器
 // ======================================================================
+// 全局变量：当前正在执行的任务的"预期时间"
+let _currentScheduledTime = 0;
+
 const scheduler = {
     tasks:[], seq:0,
-    add(fn,delayMs,key){const id=++this.seq;this.tasks.push({id,key:key||null,time:Date.now()+Math.max(0,delayMs),fn});return id;},
+    add(fn,delayMs,key){
+        const id=++this.seq;
+        const scheduledTime = Date.now() + Math.max(0, delayMs);
+        this.tasks.push({id,key:key||null,time:scheduledTime,fn,scheduledTime});
+        return id;
+    },
     cancelByKey(key){this.tasks = this.tasks.filter(t=>t.key !== key);},
-   tick(){
-    const now = Date.now();
-    const due = [];
-    this.tasks = this.tasks.filter(t=>{ if(t.time<=now){due.push(t);return false;} return true;});
-    if(due.length <= 5){
-        due.forEach(t=>{try{t.fn();}catch(e){console.error(e);}});
-    }else{
-        due.slice(0,5).forEach(t=>{try{t.fn();}catch(e){console.error(e);}});
-        due.slice(5).forEach((t,i)=>{
-            setTimeout(()=>{try{t.fn();}catch(e){console.error(e);}}, 400*(i+1));
-        });
-    }
-},
+    tick(){
+        const now = Date.now();
+        const due = [];
+        this.tasks = this.tasks.filter(t=>{ if(t.time<=now){due.push(t);return false;} return true;});
+        const runTask = (t) => {
+            const prev = _currentScheduledTime;
+            _currentScheduledTime = t.scheduledTime || 0;
+            try{ t.fn(); }catch(e){ console.error(e); }
+            _currentScheduledTime = prev;
+        };
+        if(due.length <= 5){
+            due.forEach(runTask);
+        }else{
+            due.slice(0,5).forEach(runTask);
+            due.slice(5).forEach((t,i)=>{
+                setTimeout(()=>{ runTask(t); }, 400*(i+1));
+            });
+        }
+    },
 };
 let _tickWorker = null;
 let _mainTickStarted = false;
@@ -2577,7 +2453,7 @@ function addMessage(sender,content,type,replyTo,silent,isAuto,senderName,contact
         }
     }
 
-    const msg = {id:genId(),sender,content,timestamp:Date.now(),type:msgType,replyTo:replyTo||null,isAuto:!!isAuto,senderName:senderName||'',senderId:senderId||''};
+   const msg = {id:genId(),sender,content,timestamp: _currentScheduledTime || Date.now(),type:msgType,replyTo:replyTo||null,isAuto:!!isAuto,senderName:senderName||'',senderId:senderId||''};
     if(extra && typeof extra==='object') Object.assign(msg, extra);
     const isActive = (data.activeContactId === c.id) && isChatPageVisible();
     const wasNearBottom = isActive && isNearBottom(150);
@@ -4519,9 +4395,7 @@ function buildSoundSettingsHtml(){
 
     /* ===== 系统通知（切后台） ===== */
     html += `<div class="sub-group-title">🔔 系统通知（切后台）</div>`;
-    html += `<div class="setting-item"><span class="label">开启系统通知<span style="display:block;font-size:11px;color:var(--text-light);">切后台后收到新消息·来信·来电，弹系统通知（装在手机上＝手机 设置 → 应用 → 临冬 → 通知 里允许；用浏览器打开＝浏览器问你要网站通知权限）</span></span><div class="value"><div class="toggle-switch ${st.notificationEnabled?'active':''}" onclick="toggleSetting('notificationEnabled')"></div></div></div>`;
-html += `<div class="setting-item" style="flex-direction:column;align-items:stretch;"><span class="label">前台横幅来源<span style="display:block;font-size:11px;color:var(--text-light);">只给勾上的类型弹前台横幅</span></span>${srcChips(st.deskPopSrc,'deskPopSrcRow')}</div>`;
-    html += `<div class="setting-item" style="flex-direction:column;align-items:stretch;"><span class="label">通知哪些来源<span style="display:block;font-size:11px;color:var(--text-light);">只给勾上的类型弹系统通知</span></span>${srcChips(st.notifySrc,'notifySrcRow')}</div>`;
+    html += `<div class="setting-item"><span class="label">开启系统通知<span style="display:block;font-size:11px;color:var(--text-light);">切后台后收到新消息·来信·来电，弹系统通知（装在手机上＝手机 设置 → 应用 → 临冬 → 通知 里允许；用浏览器打开＝浏览器问你要网站通知权限）</span></span><div class="value"><div class="toggle-switch ${st.notificationEnabled?'active':''}" onclick="toggleSetting('notificationEnabled')"></div></div></div>`;    html += `<div class="setting-item" style="flex-direction:column;align-items:stretch;"><span class="label">通知哪些来源<span style="display:block;font-size:11px;color:var(--text-light);">只给勾上的类型弹系统通知</span></span>${srcChips(st.notifySrc,'notifySrcRow')}</div>`;
     html += `<div class="setting-item"><span class="label">每条消息单独通知<span style="display:block;font-size:11px;color:var(--text-light);">关闭时同一会话连发多条只弹一条</span></span><div class="value"><div class="toggle-switch ${st.notifyNoDedup?'active':''}" onclick="toggleKeepField('notifyNoDedup')"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">通知权限：${permText}</span><div class="value"><button class="btn-outline" onclick="requestNotificationPermission()">申请权限</button><button class="btn-outline" onclick="testNotification()">测试弹窗</button></div></div>`;
     html += `<div style="padding:0 4px;"><button class="btn-outline" style="width:100%;justify-content:center;" onclick="testBackgroundNotification()">🔔 测试后台通知（5秒后发送，请立即切后台）</button></div>`;
@@ -4607,11 +4481,43 @@ function clearCustomCSS(){if(!confirm('清除自定义 CSS？')) return;data.the
 function saveCustomFont(){const inp=document.getElementById('customFontInput');if(!inp)return;const url=inp.value.trim();data.theme.fontUrl=url;saveData(true);applyCustomFont();renderSettingsPage();showToast(url?'正在应用自定义字体…':'已恢复默认字体');}
 function clearCustomFont(){if(!data.theme.fontUrl){showToast('当前就是默认字体');return;}data.theme.fontUrl='';saveData(true);applyCustomFont();renderSettingsPage();showToast('已恢复默认字体');}
 function applyCustomFont(){
-    let tag=document.getElementById('customFontTag');if(!tag){tag=document.createElement('style');tag.id='customFontTag';document.head.appendChild(tag);}
-    const raw=(data.theme&&data.theme.fontUrl)?String(data.theme.fontUrl).trim():'';
-    if(!raw){tag.textContent='';return;}
-    const url=raw.replace(/["'<>\\]/g,'');
-    tag.textContent=`@font-face{font-family:"LingdongUserFont";src:url("${url}");font-display:swap;}html,body,button,input,textarea,select,#app,#app *{font-family:"LingdongUserFont",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif !important;}`;
+    let tag = document.getElementById('customFontTag');
+    if(!tag){ tag=document.createElement('style'); tag.id='customFontTag'; document.head.appendChild(tag); }
+    const raw = (data.theme && data.theme.fontUrl) ? String(data.theme.fontUrl).trim() : '';
+    if(!raw){ tag.textContent=''; return; }
+
+    let url = raw;
+    // 1. 相对路径 → 绝对 URL（关键修复：PWA 中 baseURL 与浏览器标签页不同）
+    if(!/^(https?:|data:|blob:|\/\/)/i.test(url)){
+        try { url = new URL(url, document.baseURI).href; } catch(e){}
+    }
+    // 2. 中文/空格/特殊字符 URL 编码
+    try { url = encodeURI(url); } catch(e){}
+    // 3. 去引号尖括号
+    url = url.replace(/["'<>\\]/g, '');
+
+    // 4. 自动探测字体格式，明确声明 format() 提高兼容性
+    let formatHint = '';
+    if(/\.woff2($|[?#])/i.test(url)) formatHint = ' format("woff2")';
+    else if(/\.woff($|[?#])/i.test(url)) formatHint = ' format("woff")';
+    else if(/\.otf($|[?#])/i.test(url)) formatHint = ' format("opentype")';
+    else if(/\.ttf($|[?#])/i.test(url)) formatHint = ' format("truetype")';
+
+    tag.textContent =
+        `@font-face{font-family:"LingdongUserFont";src:url("${url}")${formatHint};font-display:swap;}` +
+        `html,body,button,input,textarea,select,#app,#app *{font-family:"LingdongUserFont",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif !important;}`;
+
+    // 5. 加载诊断：打开浏览器控制台可以看字体到底有没有加载成功
+    try{
+        if(document.fonts && document.fonts.load){
+            document.fonts.load('16px "LingdongUserFont"').then(fonts => {
+                if(fonts && fonts.length) console.log('[字体] ✅ 加载成功:', url);
+                else console.warn('[字体] ⚠️ 声明成功但无可用字形，请检查字体文件:', url);
+            }).catch(err => {
+                console.warn('[字体] ❌ 加载失败:', url, err);
+            });
+        }
+    }catch(e){}
 }
 function applyCustomCSS(){
     let tag=document.getElementById('customCssTag');
