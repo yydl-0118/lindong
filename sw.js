@@ -5,7 +5,7 @@
    - 作用：接收页面触发的系统通知，处理通知点击事件
    ========================================================= */
 
-const CACHE_NAME = 'lingdong-pwa-v1';
+const CACHE_NAME = 'lingdong-pwa-v3';
 
 /* ---------- 安装：立即跳过等待，并缓存基本壳 ---------- */
 self.addEventListener('install', (event) => {
