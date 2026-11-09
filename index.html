@@ -885,7 +885,6 @@ function defaultData(){
     /* ===== 后台保活 ===== */
     keepAlive:true,
     keepNoduck:false,        // 不抢其他 App 的声音
-    keepFgquiet:false,       // iPhone 前台省电
     keepAudioData:'',        // 自定义保活音频（data URL），空=默认静音
 
     /* ===== 系统通知来源 ===== */
@@ -1115,12 +1114,113 @@ let _keepAliveRetries = 0;
 let _kaTimer = null, _kaDelay = 0, _kaStreak = 0;
 let _kaPc1 = null, _kaPc2 = null, _kaRebuildTimer = null;
 
+/* ===== 两条通道（照言字卡的做法）=====
+   ① 媒体通道：<audio> 播放 18kHz 非零样本 + volume>0
+      → 后台一定保活，但会占安卓媒体通道，别的 App 会突然变小/被打断
+   ② 静音通道：Web Audio（AudioContext + 循环 buffer → GainNode）
+      → 不占媒体通道，别的 App 声音完全不受影响；页面隐藏时给 0.2 增益，
+        前台给 0；18kHz 人耳几乎听不到，但 Chrome 仍算"页面在播音频"，照样免冻结
+   「不抢其他 App 的声音」= 走②；关掉 = 走①
+*/
+let _kaWaCtx = null, _kaWaGain = null, _kaWaSrc = null, _kaWaBuf = null;
+let _kaWaPaused = true, _kaWaBroken = false;
+
+function _kaWaApplyGain(){
+    if(!_kaWaGain) return;
+    try{ _kaWaGain.gain.value = (document.visibilityState === 'visible') ? 0 : 0.2; }catch(e){}
+}
+async function _kaWaStart(){
+    try{
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if(!AC || _kaWaBroken) return false;
+        if(!_kaWaCtx) _kaWaCtx = new AC();
+        if(!_kaWaGain){ _kaWaGain = _kaWaCtx.createGain(); _kaWaGain.connect(_kaWaCtx.destination); }
+        if(!_kaWaBuf){
+            const url = _buildSilentWavUrl();
+            const ab = await (await fetch(url)).arrayBuffer();
+            _kaWaBuf = await new Promise((res, rej)=>{
+                const p = _kaWaCtx.decodeAudioData(ab, res, rej);
+                if(p && p.then) p.then(res, rej);
+            });
+        }
+        if(_kaWaCtx.state !== 'running'){ try{ await _kaWaCtx.resume(); }catch(e){} }
+        if(_kaWaSrc){ try{ _kaWaSrc.stop(); }catch(e){} }
+        const s = _kaWaCtx.createBufferSource();
+        s.buffer = _kaWaBuf; s.loop = true; s.connect(_kaWaGain); s.start(0);
+        _kaWaSrc = s; _kaWaPaused = false;
+        _kaWaApplyGain();
+        return _kaWaCtx.state === 'running';
+    }catch(e){ _kaWaBroken = true; _kaWaPaused = true; return false; }
+}
+function _kaWaStop(){
+    try{ if(_kaWaSrc) _kaWaSrc.stop(); }catch(e){}
+    _kaWaSrc = null; _kaWaPaused = true;
+}
+function _kaWaClose(){
+    _kaWaStop();
+    try{ if(_kaWaCtx) _kaWaCtx.close(); }catch(e){}
+    _kaWaCtx = null; _kaWaGain = null; _kaWaBuf = null;
+}
+function _kaMediaVolume(){
+    const hasCustom = !!(data.settings && data.settings.keepAudioData);
+    if(hasCustom) return 0.5;
+    return (document.visibilityState === 'visible') ? 0 : 0.05;
+}
+function _kaPlaying(){
+    const noduck = !!(data.settings && data.settings.keepNoduck) && !_kaWaBroken;
+    if(noduck) return !_kaWaPaused;
+    return !!(_keepAliveAudio && !_keepAliveAudio.paused);
+}
+function _kaReleaseMediaSession(){
+    try{
+        if('mediaSession' in navigator){
+            navigator.mediaSession.metadata = null;
+            try{ navigator.mediaSession.playbackState = 'paused'; }catch(e){}
+        }
+    }catch(e){}
+}
+function _kaSetMediaSession(){
+    try{
+        if(!('mediaSession' in navigator) || !window.MediaMetadata) return;
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: '临冬后台守护中', artist: '临冬', album: '临冬',
+            artwork: [{ src: 'icon.png', sizes: '192x192', type: 'image/png' }]
+        });
+        try{ navigator.mediaSession.playbackState = 'playing'; }catch(e){}
+        const safeHandler = (h)=>{ try{ navigator.mediaSession.setActionHandler(h, ()=>{}); }catch(e){} };
+        ['pause','play','stop','seekbackward','seekforward','seekto','previoustrack','nexttrack'].forEach(safeHandler);
+    }catch(e){}
+}
+
 function _setKeepAliveChannel(){
     const a = _keepAliveAudio; if(!a) return;
-    const hasCustom = !!(data.settings && data.settings.keepAudioData);
-    a.muted = false;                    // 绝不能 muted：muted 等于"没在播"，必被冻
-    a.volume = hasCustom ? 0.5 : 0.05;  // 低但非零；太低会被 Chrome 无声节流
+    const noduck = !!(data.settings && data.settings.keepNoduck) && !_kaWaBroken;
+    if(noduck){
+        // 静音通道：停掉媒体元素，改用 Web Audio；撤掉媒体会话条，避免被当成"在放歌"
+        try{ if(!a.paused) a.pause(); }catch(e){}
+        try{ a.muted = true; a.volume = 0; }catch(e){}
+        _kaReleaseMediaSession();
+        _kaWaStart().then(ok=>{ if(!ok){ _kaWaBroken = true; try{ _setKeepAliveChannel(); }catch(e){} } });
+    }else{
+        _kaWaStop();
+        a.muted = false;
+        a.volume = _kaMediaVolume();
+        if(a.paused){ const p = a.play(); if(p && p.catch) p.catch(()=>{}); }
+        _kaSetMediaSession();
+    }
 }
+
+// 前台/后台切换时调整增益（前台 0、后台 0.2；媒体通道同理）
+document.addEventListener('visibilitychange', ()=>{
+    try{
+        if(!data.settings || !data.settings.keepAlive) return;
+        _kaWaApplyGain();
+        if(_keepAliveAudio && !(data.settings.keepNoduck && !_kaWaBroken)){
+            _keepAliveAudio.volume = _kaMediaVolume();
+        }
+        updateKeepAliveState();
+    }catch(e){}
+});
 
 function _kaNextDelay(){
     _kaStreak++;
@@ -1202,42 +1302,34 @@ function _startKeepAliveCore(){
             a.addEventListener('pause', ()=>{
                 updateKeepAliveState();
                 if(!data.settings || !data.settings.keepAlive) return;
-                // 被其他 App 打断：不硬抢；开了「不抢」走退避，没开就 1 秒后立刻补播
+                // 走静音通道时媒体元素本来就是"故意停着"，不用补播
+                if(data.settings.keepNoduck && !_kaWaBroken) return;
+                // 被其他 App 打断：不硬抢，「不抢」走退避，没开就 1 秒后补播
                 if(data.settings.keepNoduck) _kaScheduleRetry();
                 else _kaScheduleRetry(1000);
             });
             _keepAliveAudio = a;
-            _setKeepAliveChannel();
         }
 
-        _setKeepAliveChannel();
-        const p = _keepAliveAudio.play();
-        if(p && p.catch) p.catch(()=>{});
-
-        // 媒体会话：让系统把它当成"正在播放媒体"的页面（冻结豁免的一部分）
-        try{
-            if('mediaSession' in navigator){
-                navigator.mediaSession.metadata = new MediaMetadata({
-                    title: '临冬后台守护中', artist: '临冬', album: '临冬',
-                    artwork: [{ src: 'icon.png', sizes: '192x192', type: 'image/png' }]
-                });
-                try{ navigator.mediaSession.playbackState = 'playing'; }catch(e){}
-                const safeHandler = (h)=>{ try{ navigator.mediaSession.setActionHandler(h, ()=>{}); }catch(e){} };
-                ['pause','play','stop','seekbackward','seekforward','seekto','previoustrack','nexttrack'].forEach(safeHandler);
-            }
-        }catch(e){}
-
-        _kaWebrtcStart();   // 第二条冻结豁免锚点
-        updateKeepAliveState();
+        _setKeepAliveChannel();     // 决定走哪条通道，并按需起播
+        _kaWebrtcStart();           // 第二锚点：WebRTC
 
         if(_keepAliveWatchTimer) clearInterval(_keepAliveWatchTimer);
         _keepAliveWatchTimer = setInterval(()=>{
             if(!data.settings || !data.settings.keepAlive) return;
-            const a = _keepAliveAudio; if(!a) return;
-            if(!a.paused){
-                try{ if(navigator.mediaSession) navigator.mediaSession.playbackState = 'playing'; }catch(e){}
-            }else if(!_kaTimer){
-                _kaScheduleRetry();
+            const noduck = !!data.settings.keepNoduck && !_kaWaBroken;
+            if(noduck){
+                // 静音通道：AudioContext 被挂起就恢复，源头掉了就重起
+                if(_kaWaCtx && _kaWaCtx.state !== 'running'){ try{ _kaWaCtx.resume().catch(()=>{}); }catch(e){} }
+                if(_kaWaPaused && !_kaWaBroken) _kaWaStart();
+                _kaWaApplyGain();
+            }else{
+                const a = _keepAliveAudio;
+                if(a && !a.paused){
+                    try{ if(navigator.mediaSession) navigator.mediaSession.playbackState = 'playing'; }catch(e){}
+                }else if(a && !_kaTimer){
+                    _kaScheduleRetry();
+                }
             }
             if(!_kaPc1 && !_kaRebuildTimer) _kaWebrtcStart();
             updateKeepAliveState();
@@ -1246,6 +1338,7 @@ function _startKeepAliveCore(){
 }
 
 function stopKeepAliveAudio(){
+    _kaWaClose();
     if(_keepAliveWatchTimer){ clearInterval(_keepAliveWatchTimer); _keepAliveWatchTimer = null; }
     if(_kaTimer){ clearTimeout(_kaTimer); _kaTimer = null; }
     _kaDelay = 0; _kaStreak = 0;
@@ -1277,7 +1370,8 @@ function updateKeepAliveState(){
         return;
     }
     const a = _keepAliveAudio;
-    const playing = !!(a && !a.paused);
+    const playing = _kaPlaying();
+    const noduck = !!data.settings.keepNoduck && !_kaWaBroken;
     const aliveMs = _bgAliveMs || 0;
     const frozen = aliveMs > 0 && aliveMs < 30000;   // 实测后台活不过 30 秒 = 保活不生效
     if(frozen){
@@ -1286,9 +1380,9 @@ function updateKeepAliveState(){
         return;
     }
     if(playing){
-        el.textContent = data.settings.keepNoduck
-            ? '近静音音频运行中 ✅（18kHz，人耳几乎听不到）'
-            : '保活音频运行中 ✅（18kHz + WebRTC 锚点）';
+        el.textContent = noduck
+            ? '静音通道运行中 ✅（WebAudio，不占你正在听的声音）'
+            : '媒体通道运行中 ✅（会占声音，但后台最稳）';
         el.style.color = '#10b981';
     }else{
         el.textContent = '保活音频被中断，正在退避重试（请点一下页面）';
@@ -1320,8 +1414,7 @@ function applyKeepAliveAudio(){
     if(!data.settings) return;
     if(!data.settings.keepAlive) return;
     if(!_keepAliveAudio){ _startKeepAliveCore(); return; }
-    _setKeepAliveChannel(false);
-    if(_keepAliveAudio.paused){ try{ _keepAliveAudio.play().catch(()=>{}); }catch(e){} }
+    _setKeepAliveChannel();
     updateKeepAliveState();
 }
 /* =========================================================
@@ -1710,7 +1803,6 @@ function initDataFields(){
 if(!data.settings.deskPopSrc || typeof data.settings.deskPopSrc !== 'object') data.settings.deskPopSrc = {chat:true,letter:true,call:true,music:true};
 if(data.settings.deskPopRows !== 2) data.settings.deskPopRows = 1;
 if(typeof data.settings.keepNoduck !== 'boolean') data.settings.keepNoduck = false;
-if(typeof data.settings.keepFgquiet !== 'boolean') data.settings.keepFgquiet = false;
 if(typeof data.settings.keepAudioData !== 'string') data.settings.keepAudioData = '';
 if(typeof data.settings.notifyNoDedup !== 'boolean') data.settings.notifyNoDedup = false;
 if(typeof data.settings.deskPopup !== 'boolean') data.settings.deskPopup = true;
@@ -4561,7 +4653,7 @@ function buildCardSettingsHtml(){
 function toggleKeepField(key){
     data.settings[key] = !data.settings[key];
     saveData(true);
-    if(key === 'keepNoduck' || key === 'keepFgquiet') applyKeepAliveAudio();
+    if(key === 'keepNoduck'){ try{ applyKeepAliveAudio(); }catch(e){} }   // 立刻换通道，不用重启
     renderSettingsSubPage('sound');
 requestAnimationFrame(()=>{ try{ updateKeepAliveState(); }catch(e){} }); 
     showToast(data.settings[key] ? '已开启' : '已关闭');
@@ -4651,8 +4743,7 @@ function buildSoundSettingsHtml(){
     /* ===== 后台保活 ===== */
     html += `<div class="sub-group-title">🔔 后台保活</div>`;
     html += `<div class="setting-item"><span class="label">开启后台保活<span style="display:block;font-size:11px;color:var(--text-light);">切后台时循环播放近无声音频防冻结，消息即时到达；回前台自动补跑错过的调度</span></span><div class="value"><div class="toggle-switch ${st.keepAlive?'active':''}" onclick="toggleKeepAlive()"></div></div></div>`;
-    html += `<div class="setting-item"><span class="label">不抢其他 App 的声音<span style="display:block;font-size:11px;color:var(--text-light);">开启后保活音频换成 18kHz 极轻信号（手机外放几乎听不见），被别的 App 打断时只按 5s→10s→20s 退避补播，不每 5 秒硬抢；完全静音是不行的，系统会判定"没在播"并把页面冻结</span></span><div class="value"><div class="toggle-switch ${st.keepNoduck?'active':''}" onclick="toggleKeepField('keepNoduck')"></div></div></div>`;
-    html += `<div class="setting-item"><span class="label">iPhone 前台省电<span style="display:block;font-size:11px;color:var(--text-light);">你正在用这一页时也不放保活声——iPhone 上它原本从进页起一直跑；手停 15 秒或切到后台会自动接上</span></span><div class="value"><div class="toggle-switch ${st.keepFgquiet?'active':''}" onclick="toggleKeepField('keepFgquiet')"></div></div></div>`;
+    html += `<div class="setting-item"><span class="label">不抢其他 App 的声音<span style="display:block;font-size:11px;color:var(--text-light);">开启后保活改走「静音通道」（WebAudio）：不占用安卓的媒体通道，刷视频、听歌不会突然变小或被暂停；声音本身是 18kHz 极轻信号，人耳几乎听不到。代价：静音通道被系统挂起时不会换回会抢声音的媒体通道，那段时间可能收不到消息</span></span><div class="value"><div class="toggle-switch ${st.keepNoduck?'active':''}" onclick="toggleKeepField('keepNoduck')"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">保活音频<span style="display:block;font-size:11px;color:var(--text-light);">点击可换成自定义音频（白噪音/助眠声，会按原音量出声）</span></span><div class="value"><button class="btn-outline" onclick="uploadKeepAliveAudio()">${st.keepAudioData?'自定义音频':'默认静音音频'}</button>${st.keepAudioData?'<button class="btn-outline" onclick="clearKeepAliveAudio()" style="color:#ef4444;border-color:#fecaca;">清除</button>':''}</div></div>`;
     html += `<div class="setting-item"><span class="label">保活状态</span><div class="value"><span id="keepAliveState" style="font-size:12px;color:var(--text-light);">—</span></div></div>`;
     html += `<div class="setting-item"><span class="label">后台存活检测<span style="display:block;font-size:11px;color:var(--text-light);">上次切后台后页面还跑了多久；低于 30 秒＝一进后台就被系统冻住，保活没生效</span></span><div class="value"><span id="bgAliveStat" style="font-size:12px;color:var(--text-light);">—</span></div></div>`;
