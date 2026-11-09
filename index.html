@@ -1076,47 +1076,67 @@ function startKeepAliveAudio(){
     _startKeepAliveCore();
 }
 
+/* ---------- 保活：静音通道 / 出声通道（借鉴言字卡的做法） ----------
+   - 静音通道：muted=true、volume=0 → 播放时不申请音频焦点，不会压低你在看的视频/在听的歌
+   - 出声通道：muted=false → 系统把静音通道挂起时，用它把页面重新撑起来（会抢焦点）
+   - 开了「不抢其他 App 的声音」= 只允许静音通道，永不自动换出声通道
+*/
+let _keepAliveRetries = 0;
+
+function _setKeepAliveChannel(forceAudible){
+    const a = _keepAliveAudio; if(!a) return;
+    const hasCustom = !!(data.settings && data.settings.keepAudioData);
+    const noduck = !!(data.settings && data.settings.keepNoduck);
+    if(noduck && !forceAudible){
+        a.muted = true;  a.volume = 0;                          // 静音通道
+    }else{
+        a.muted = false; a.volume = hasCustom ? 0.5 : 0.001;    // 出声通道
+    }
+}
+
 function _startKeepAliveCore(){
     try{
-               // 1. 静音 <audio> 循环
+        if(!data.settings || !data.settings.keepAlive) return;
+
         if(!_keepAliveAudio){
-            // ⭐ 优先使用用户上传的音频，没有再用默认静音
-            const src = (data.settings && data.settings.keepAudioData) ? data.settings.keepAudioData : _buildSilentWavUrl();
+            const hasCustom = !!(data.settings && data.settings.keepAudioData);
+            const src = hasCustom ? data.settings.keepAudioData : _buildSilentWavUrl();
             const a = new Audio(src);
             a.loop = true;
-            // 如果是自定义音频，稍微给点音量(0.5)，如果是默认静音，极小音量(0.001)
-            a.volume = (data.settings && data.settings.keepAudioData) ? 0.5 : 0.001;
             a.preload = 'auto';
             a.setAttribute('playsinline','');
             a.setAttribute('webkit-playsinline','');
-            a.addEventListener('play', updateKeepAliveState);
+            a.addEventListener('play', ()=>{ _keepAliveRetries = 0; updateKeepAliveState(); });
             a.addEventListener('pause', ()=>{
-                if(data.settings && data.settings.keepAlive){
-                    setTimeout(()=>{
-                        if(data.settings && data.settings.keepAlive){
-                            try{ _keepAliveAudio.play().catch(()=>{}); }catch(e){}
-                        }
-                    }, 900);
-                }
                 updateKeepAliveState();
+                if(!data.settings || !data.settings.keepAlive) return;
+                // 被系统挂起：先按静音通道重试，绝不主动换出声通道
+                setTimeout(()=>{
+                    if(!data.settings || !data.settings.keepAlive) return;
+                    if(_keepAliveAudio && _keepAliveAudio.paused){
+                        _setKeepAliveChannel(false);
+                        try{ _keepAliveAudio.play().catch(()=>{}); }catch(e){}
+                    }
+                }, 900);
             });
             _keepAliveAudio = a;
+            _setKeepAliveChannel(false);
         }
+
+        _setKeepAliveChannel(false);
         const p = _keepAliveAudio.play();
         if(p && p.catch) p.catch(()=>{});
 
-        // 2. MediaSession：让系统识别为"媒体应用"获取后台存活，
-        //    但故意不设置 playbackState='playing'，因此不会抢音频焦点、不会中断你正在听的其他App
+        // MediaSession：仅让系统知道这是媒体页；开了「不抢」就不声明 playing，避免被当成在放歌
         try{
-            if('mediaSession' in navigator && !navigator.mediaSession._ldBound){
-                navigator.mediaSession._ldBound = true;
+            if('mediaSession' in navigator){
                 navigator.mediaSession.metadata = new MediaMetadata({
-                    title: '临冬后台守护中',
-                    artist: '临冬',
-                    album: '临冬',
+                    title: '临冬后台守护中', artist: '临冬', album: '临冬',
                     artwork: [{ src: 'icon.png', sizes: '192x192', type: 'image/png' }]
                 });
-                // 不设 playbackState，避免抢音频焦点
+                if(!data.settings.keepNoduck){
+                    try{ navigator.mediaSession.playbackState = 'playing'; }catch(e){}
+                }
                 const safeHandler = (h)=>{ try{ navigator.mediaSession.setActionHandler(h, ()=>{}); }catch(e){} };
                 ['pause','play','stop','seekbackward','seekforward','seekto','previoustrack','nexttrack'].forEach(safeHandler);
             }
@@ -1124,12 +1144,18 @@ function _startKeepAliveCore(){
 
         updateKeepAliveState();
 
-        // 3. 兜底：每 15 秒检查一次，被系统暂停就重新拉起
+        // 兜底看门狗：每 15 秒检查一次
+        // 静音通道连续两次拉不起来、且「不抢」没开时，才换出声通道；开了「不抢」就只重试静音通道
         if(_keepAliveWatchTimer) clearInterval(_keepAliveWatchTimer);
         _keepAliveWatchTimer = setInterval(()=>{
             if(!data.settings || !data.settings.keepAlive) return;
-            if(_keepAliveAudio && _keepAliveAudio.paused){
-                try{ _keepAliveAudio.play().catch(()=>{}); }catch(e){}
+            const a = _keepAliveAudio; if(!a) return;
+            if(a.paused){
+                _keepAliveRetries++;
+                if(_keepAliveRetries >= 2 && !data.settings.keepNoduck) _setKeepAliveChannel(true);
+                try{ a.play().catch(()=>{}); }catch(e){}
+            }else{
+                _keepAliveRetries = 0;
             }
             updateKeepAliveState();
         }, 15000);
@@ -1155,9 +1181,25 @@ function updateKeepAliveState(){
         el.style.color = '#ef4444';
         return;
     }
-    const playing = !!(_keepAliveAudio && !_keepAliveAudio.paused);
-    el.textContent = playing ? '运行中 ✅' : '已开启，请点击页面唤醒';
-    el.style.color = playing ? '#10b981' : '#F59E0B';
+    const a = _keepAliveAudio;
+    const playing = !!(a && !a.paused);
+    if(data.settings.keepNoduck){
+        if(playing){
+            el.textContent = '静音通道运行中（不抢其他 App 声音）';
+            el.style.color = '#10b981';
+        }else{
+            el.textContent = '静音通道被系统挂起（不换出声通道，这段时间可能收不到消息）';
+            el.style.color = '#F59E0B';
+        }
+        return;
+    }
+    if(playing){
+        el.textContent = a.muted ? '静音通道运行中 ✅' : '出声通道运行中 ✅';
+        el.style.color = '#10b981';
+    }else{
+        el.textContent = '已开启，请点击页面唤醒';
+        el.style.color = '#F59E0B';
+    }
 }
 
 function testKeepAlive(){
@@ -1179,18 +1221,59 @@ function _bindKeepAliveUnlock(){
     document.addEventListener('touchstart', unlock, {once:true, passive:true, capture:true});
     document.addEventListener('click', unlock, {once:true, capture:true});
 }
-// 兼容旧代码里可能残留的调用
+// 切换「不抢其他 App 的声音」时立刻切通道，不用重启
 function applyKeepAliveAudio(){
-    if(!_keepAliveAudio) return;
-    // 如果开启了“不抢其他 App 的声音”，把声音压到极小
-    if(data.settings.keepNoduck){
-        _keepAliveAudio.volume = 0.001;
-    }else{
-        // 如果没开启，正常使用你设置的音量（或者自定义音频的音量）
-        _keepAliveAudio.volume = data.settings.keepAudioData ? 0.5 : 0.05;
-    }
+    if(!data.settings) return;
+    if(!data.settings.keepAlive) return;
+    if(!_keepAliveAudio){ _startKeepAliveCore(); return; }
+    _setKeepAliveChannel(false);
+    if(_keepAliveAudio.paused){ try{ _keepAliveAudio.play().catch(()=>{}); }catch(e){} }
+    updateKeepAliveState();
 }
-/* ---------- 启动 / 停止 ---------- */
+/* =========================================================
+   ⭐ HBuilderX / 5+ App 原生通知（安卓 APK 必用）
+   原因：安卓 WebView 里没有 window.Notification，网页弹窗在 App 里永远是 0 条。
+   必须走 5+ 的原生通知 plus.push.createMessage。
+   前置条件：HBuilderX → manifest.json → App模块配置 → 勾选「Push(消息推送)」→ 重新打包
+   ========================================================= */
+let _plusClickBound = false;
+function bindPlusPush(){
+    if(!window.plus || !plus.push || _plusClickBound) return;
+    _plusClickBound = true;
+    try{
+        // 点击通知栏 → 进入对应聊天
+        plus.push.addEventListener('click', function(msg){
+            let payload = msg && msg.payload;
+            if(typeof payload === 'string'){ try{ payload = JSON.parse(payload); }catch(e){ payload = {}; } }
+            const cid = payload && payload.contactId;
+            if(cid){ try{ if(getContact(cid)) openChat(cid); }catch(e){} }
+            else { try{ switchPage('contacts'); }catch(e){} }
+        }, false);
+    }catch(e){}
+}
+function requestAndroidNotiPermission(){
+    try{
+        if(window.plus && plus.android && plus.android.requestPermissions){
+            // 安卓 13 起必须动态申请，不申请通知栏一条都不会出来
+            plus.android.requestPermissions(['android.permission.POST_NOTIFICATIONS'], function(){}, function(){});
+        }
+    }catch(e){}
+}
+function showPlusNotification(title, body, contactId){
+    try{
+        if(!window.plus || !plus.push || !plus.push.createMessage) return false;
+        const payload = JSON.stringify({ contactId: contactId || null, ts: Date.now() });
+        plus.push.createMessage(String(body || '你有一条新消息'), payload, {
+            title: String(title || '临冬'),
+            cover: false,
+            delay: 0,
+            sound: 'system'
+        });
+        return true;
+    }catch(e){ console.warn('[plus通知] 失败', e); return false; }
+}
+
+
 async function showSystemNotification(msg, force, contactId){
     if(!data.settings) return;
     const st = data.settings;
@@ -1201,9 +1284,15 @@ async function showSystemNotification(msg, force, contactId){
         (msg && msg.type === 'music' ? 'music' : 'chat'));
 
     if(!st.notificationEnabled) return;
-    if(!('Notification' in window)) return;
-    if(Notification.permission !== 'granted') return;
     if(st.notifyOnlyWhenHidden && !document.hidden && !force) return;
+
+    // ⭐ App（HBuilderX/5+）里没有 window.Notification，必须走原生通知；
+    //    浏览器里才用 Notification / Service Worker
+    const IS_PLUS_APP = !!(window.plus && plus.push && plus.push.createMessage);
+    if(!IS_PLUS_APP){
+        if(!('Notification' in window)) return;
+        if(Notification.permission !== 'granted') return;
+    }
 
     // 通知来源筛选
     if(st.notifySrc && st.notifySrc[source] === false) return;
@@ -1237,6 +1326,12 @@ async function showSystemNotification(msg, force, contactId){
         renotify: true,
         vibrate: [80, 40, 80]
     };
+
+    // ⭐ App 环境：走原生通知栏（plus.push.createMessage），这是 APK 里唯一能弹的方式
+    if(IS_PLUS_APP){
+        bindPlusPush();
+        if(showPlusNotification(title, body, contactId || (contact ? contact.id : null))) return;
+    }
 
     // 优先走 Service Worker（有 sw.js 时后台也能弹）
     if('serviceWorker' in navigator){
@@ -1658,7 +1753,8 @@ function startTickWorker(){
                 try {
                     scheduler.tick();
                     const ctx = audioCtx;
-                    if(ctx && ctx.state === 'suspended'){ ctx.resume().catch(()=>{}); }
+                    // 开了「不抢声音」就别再唤醒 AudioContext，避免浏览器认为页面在出声
+                    if(ctx && ctx.state === 'suspended' && !(data.settings && data.settings.keepNoduck)){ ctx.resume().catch(()=>{}); }
                 } catch(e){}
             };
             _tickWorker.onerror = () => {
@@ -1895,6 +1991,12 @@ function showInstallGuide(){
 //  系统通知
 // ======================================================================
 function requestNotificationPermission(){
+    // App（HBuilderX/5+）环境：走安卓原生权限申请
+    if(window.plus && plus.push){
+        requestAndroidNotiPermission();
+        showToast('已发出通知权限申请，请在系统弹窗里点「允许」');
+        return;
+    }
     if(!('Notification' in window)){showToast('当前环境不支持系统通知');return;}
     if(Notification.permission==='granted'){showToast('通知权限已开启 ✅');return;}
     if(Notification.permission==='denied'){showToast('通知被拒绝，请到浏览器设置中允许');return;}
@@ -1909,6 +2011,16 @@ function requestNotifPermissionOnGesture(){
 }
 
 function testBackgroundNotification(){
+    // App 环境：直接走原生通知，不受 window.Notification 限制
+    if(window.plus && plus.push){
+        requestAndroidNotiPermission();
+        showToast('5 秒后弹原生通知，请立即切到后台查看');
+        setTimeout(()=>{
+            const c = getActiveContact();
+            showSystemNotification({content:'如果你在后台看到这条通知，说明后台弹窗正常 ✅',type:'text',senderName:''},true, c?c.id:null);
+        }, 5000);
+        return;
+    }
     if(!('Notification' in window)){showToast('当前环境不支持系统通知');return;}
     if(Notification.permission !== 'granted'){requestNotificationPermission();return;}
     showToast('5 秒后发送通知，请立即切到后台查看');
@@ -4403,7 +4515,7 @@ function buildSoundSettingsHtml(){
     /* ===== 后台保活 ===== */
     html += `<div class="sub-group-title">🔔 后台保活</div>`;
     html += `<div class="setting-item"><span class="label">开启后台保活<span style="display:block;font-size:11px;color:var(--text-light);">切后台时循环播放近无声音频防冻结，消息即时到达；回前台自动补跑错过的调度</span></span><div class="value"><div class="toggle-switch ${st.keepAlive?'active':''}" onclick="toggleKeepAlive()"></div></div></div>`;
-    html += `<div class="setting-item"><span class="label">不抢其他 App 的声音<span style="display:block;font-size:11px;color:var(--text-light);">保活音频只走静音通道，不压低你在听的音乐/视频；代价：安卓上系统挂起静音通道时可能收不到消息</span></span><div class="value"><div class="toggle-switch ${st.keepNoduck?'active':''}" onclick="toggleKeepField('keepNoduck')"></div></div></div>`;
+    html += `<div class="setting-item"><span class="label">不抢其他 App 的声音<span style="display:block;font-size:11px;color:var(--text-light);">保活音频只走「静音通道」（系统不认为在放声音），不会压低/暂停你在看的视频、在听的歌；静音通道被系统挂起时也不会自动换回出声通道，代价是那段时间后台可能收不到消息</span></span><div class="value"><div class="toggle-switch ${st.keepNoduck?'active':''}" onclick="toggleKeepField('keepNoduck')"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">iPhone 前台省电<span style="display:block;font-size:11px;color:var(--text-light);">你正在用这一页时也不放保活声——iPhone 上它原本从进页起一直跑；手停 15 秒或切到后台会自动接上</span></span><div class="value"><div class="toggle-switch ${st.keepFgquiet?'active':''}" onclick="toggleKeepField('keepFgquiet')"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">保活音频<span style="display:block;font-size:11px;color:var(--text-light);">点击可换成自定义音频（白噪音/助眠声，会按原音量出声）</span></span><div class="value"><button class="btn-outline" onclick="uploadKeepAliveAudio()">${st.keepAudioData?'自定义音频':'默认静音音频'}</button>${st.keepAudioData?'<button class="btn-outline" onclick="clearKeepAliveAudio()" style="color:#ef4444;border-color:#fecaca;">清除</button>':''}</div></div>`;
     html += `<div class="setting-item"><span class="label">保活状态</span><div class="value"><span id="keepAliveState" style="font-size:12px;color:var(--text-light);">—</span></div></div>`;
@@ -6551,6 +6663,13 @@ try{ updateKeepAliveState(); }catch(e){}
     });
    scheduleSplashHide();
     registerSWForNotifications();
+    // ⭐ App 环境：绑定原生通知点击 + 申请安卓13通知权限（不申请一条都不会弹）
+    try{
+        const _bootPlus = ()=>{ try{ bindPlusPush(); requestAndroidNotiPermission(); }catch(e){} };
+        if(window.plus) _bootPlus();
+        else document.addEventListener('plusready', _bootPlus, false);
+        setTimeout(()=>{ if(window.plus) _bootPlus(); }, 1200);
+    }catch(e){}
     // ========== 生命周期保存数据 ==========
     window.addEventListener('pagehide',()=>{try{flushSave();}catch(e){}});
     window.addEventListener('beforeunload',()=>{try{flushSave();}catch(e){}});
