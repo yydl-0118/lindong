@@ -964,6 +964,10 @@ let _msgRenderStart = null;
 let _chatAutoScrollUntil = 0;     // 自动滚底窗口截止时间
 let _chatScrollGuardBound = false;
 let _suppressAutoScrollOnce = false;
+/* === 后台存活检测：用来判断切后台后页面还能跑多久 === */
+let _bgHideAt = 0;
+let _bgLastTick = 0;
+let _bgAliveMs = (()=>{ try{ return Number(localStorage.getItem('lingdong_bg_alive_ms'))||0; }catch(e){ return 0; } })();
 /* === PWA 安装 === */
 let deferredInstallPrompt = null;
 
@@ -994,6 +998,14 @@ function releaseWakeLock(){
 }
 document.addEventListener('visibilitychange', async () => {
     if(document.visibilityState === 'visible'){
+    // ⭐ 后台存活检测：回到前台时结算"切后台后页面还被系统放行了多久"
+    try{
+        if(_bgHideAt){
+            const alive = Math.max(0, _bgLastTick - _bgHideAt);
+            if(alive > (_bgAliveMs || 0)){ _bgAliveMs = alive; try{ localStorage.setItem('lingdong_bg_alive_ms', String(alive)); }catch(e){} }
+            _bgHideAt = 0;
+        }
+    }catch(e){}
     try{ updateKeepAliveState(); }catch(e){}
         if(audioCtx && audioCtx.state === 'suspended'){
             try{ await audioCtx.resume(); }catch(e){}
@@ -1012,6 +1024,8 @@ document.addEventListener('visibilitychange', async () => {
             }
         }
     } else {
+        // ⭐ 记录进入后台的时刻，配合 tick 计算后台存活时长
+        try{ _bgHideAt = Date.now(); _bgLastTick = Date.now(); }catch(e){}
         try{ flushSave(); }catch(e){}
     }
 });
@@ -1175,6 +1189,14 @@ function stopKeepAliveAudio(){
 
 function updateKeepAliveState(){
     const el = document.getElementById('keepAliveState');
+    const stat = document.getElementById('bgAliveStat');
+    if(stat){
+        const ms = _bgAliveMs || 0;
+        stat.textContent = ms >= 60000
+            ? `上次后台存活 ${Math.floor(ms/60000)} 分 ${Math.round((ms%60000)/1000)} 秒`
+            : `上次后台存活 ${Math.round(ms/1000)} 秒`;
+        stat.style.color = ms < 30000 ? '#ef4444' : '#10b981';
+    }
     if(!el) return;
     if(!data.settings || !data.settings.keepAlive){
         el.textContent = '已关闭';
@@ -1718,6 +1740,7 @@ const scheduler = {
     cancelByKey(key){this.tasks = this.tasks.filter(t=>t.key !== key);},
     tick(){
         const now = Date.now();
+        _bgLastTick = now;   // 后台存活检测的心跳
         const due = [];
         this.tasks = this.tasks.filter(t=>{ if(t.time<=now){due.push(t);return false;} return true;});
         const runTask = (t) => {
@@ -4519,6 +4542,7 @@ function buildSoundSettingsHtml(){
     html += `<div class="setting-item"><span class="label">iPhone 前台省电<span style="display:block;font-size:11px;color:var(--text-light);">你正在用这一页时也不放保活声——iPhone 上它原本从进页起一直跑；手停 15 秒或切到后台会自动接上</span></span><div class="value"><div class="toggle-switch ${st.keepFgquiet?'active':''}" onclick="toggleKeepField('keepFgquiet')"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">保活音频<span style="display:block;font-size:11px;color:var(--text-light);">点击可换成自定义音频（白噪音/助眠声，会按原音量出声）</span></span><div class="value"><button class="btn-outline" onclick="uploadKeepAliveAudio()">${st.keepAudioData?'自定义音频':'默认静音音频'}</button>${st.keepAudioData?'<button class="btn-outline" onclick="clearKeepAliveAudio()" style="color:#ef4444;border-color:#fecaca;">清除</button>':''}</div></div>`;
     html += `<div class="setting-item"><span class="label">保活状态</span><div class="value"><span id="keepAliveState" style="font-size:12px;color:var(--text-light);">—</span></div></div>`;
+    html += `<div class="setting-item"><span class="label">后台存活检测<span style="display:block;font-size:11px;color:var(--text-light);">上次切后台后页面还跑了多久；低于 30 秒＝一进后台就被系统冻住，保活没生效</span></span><div class="value"><span id="bgAliveStat" style="font-size:12px;color:var(--text-light);">—</span></div></div>`;
     html += `<div style="padding:0 4px;"><button class="btn-outline" style="width:100%;justify-content:center;" onclick="testKeepAlive()">保活测试</button></div>`;
 
     /* ===== 系统通知（切后台） ===== */
