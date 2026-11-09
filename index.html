@@ -994,6 +994,7 @@ function releaseWakeLock(){
 }
 document.addEventListener('visibilitychange', async () => {
     if(document.visibilityState === 'visible'){
+    try{ updateKeepAliveState(); }catch(e){}
         if(audioCtx && audioCtx.state === 'suspended'){
             try{ await audioCtx.resume(); }catch(e){}
         }
@@ -1077,12 +1078,14 @@ function startKeepAliveAudio(){
 
 function _startKeepAliveCore(){
     try{
-        // 1. 静音 <audio> 循环：让 Chrome 认为页面在"放音频"，从而不深度节流
+               // 1. 静音 <audio> 循环
         if(!_keepAliveAudio){
-          const src = (data.settings && data.settings.keepAudioData) || _buildSilentWavUrl();
-const a = new Audio(src);
+            // ⭐ 优先使用用户上传的音频，没有再用默认静音
+            const src = (data.settings && data.settings.keepAudioData) ? data.settings.keepAudioData : _buildSilentWavUrl();
+            const a = new Audio(src);
             a.loop = true;
-            a.volume = 0.001;      // 极低音量，听觉上几乎无感，不会打断你在听的其他App
+            // 如果是自定义音频，稍微给点音量(0.5)，如果是默认静音，极小音量(0.001)
+            a.volume = (data.settings && data.settings.keepAudioData) ? 0.5 : 0.001;
             a.preload = 'auto';
             a.setAttribute('playsinline','');
             a.setAttribute('webkit-playsinline','');
@@ -1177,7 +1180,16 @@ function _bindKeepAliveUnlock(){
     document.addEventListener('click', unlock, {once:true, capture:true});
 }
 // 兼容旧代码里可能残留的调用
-function applyKeepAliveAudio(){}
+function applyKeepAliveAudio(){
+    if(!_keepAliveAudio) return;
+    // 如果开启了“不抢其他 App 的声音”，把声音压到极小
+    if(data.settings.keepNoduck){
+        _keepAliveAudio.volume = 0.001;
+    }else{
+        // 如果没开启，正常使用你设置的音量（或者自定义音频的音量）
+        _keepAliveAudio.volume = data.settings.keepAudioData ? 0.5 : 0.05;
+    }
+}
 /* ---------- 启动 / 停止 ---------- */
 async function showSystemNotification(msg, force, contactId){
     if(!data.settings) return;
@@ -1599,9 +1611,12 @@ let _currentScheduledTime = 0;
 
 const scheduler = {
     tasks:[], seq:0,
-    add(fn,delayMs,key){
+    add(fn,delayMs,key,baseTime){
         const id=++this.seq;
-        const scheduledTime = Date.now() + Math.max(0, delayMs);
+        // baseTime：可选。传了它，延迟就从"原计划时间"开始算，
+        // 这样后台被冻住、回来补跑时，消息时间仍然是原本该发的时间
+        const base = (typeof baseTime === 'number' && baseTime > 0) ? baseTime : Date.now();
+        const scheduledTime = base + Math.max(0, delayMs);
         this.tasks.push({id,key:key||null,time:scheduledTime,fn,scheduledTime});
         return id;
     },
@@ -4174,7 +4189,11 @@ function renderSettingsSubPage(key){
     if(key === 'status') body.innerHTML = buildStatusSettingsHtml();
     else if(key === 'dress') body.innerHTML = buildDressSettingsHtml();
     else if(key === 'card') body.innerHTML = buildCardSettingsHtml();
-    else if(key === 'sound') body.innerHTML = buildSoundSettingsHtml();
+    else if(key === 'sound') {
+        body.innerHTML = buildSoundSettingsHtml();
+        // ⭐ 渲染完成后，立即刷新一次保活状态，避免显示「—」
+        setTimeout(()=>{ try{ updateKeepAliveState(); }catch(e){} }, 100);
+    }
     else if(key === 'data') body.innerHTML = buildDataSettingsHtml();
     else if(key === 'help') body.innerHTML = buildHelpSettingsHtml();
 }
@@ -4626,6 +4645,13 @@ function scheduleAutoMessage(){
     if(!data.replySettings.autoMsgEnabled) return;
     data.contacts.forEach(c=>{ if(isGroup(c)) return; scheduleAutoMessageFor(c.id); });
 }
+/* ⭐ 排期持久化：把"每个联系人下一次该发消息的绝对时间"存进 localStorage。
+   作用：App 被系统冻结/杀掉后重新打开，不会把 5~30 分钟的等待重新从 0 开始算，
+   已经错过的那批消息会按它原本该发的时间补上。 */
+const AUTO_PLAN_KEY = 'lingdong_auto_plan_v1';
+let _autoPlan = (()=>{ try{ return JSON.parse(localStorage.getItem(AUTO_PLAN_KEY)||'{}')||{}; }catch(e){ return {}; } })();
+function saveAutoPlan(){ try{ localStorage.setItem(AUTO_PLAN_KEY, JSON.stringify(_autoPlan)); }catch(e){} }
+
 function scheduleAutoMessageFor(contactId){
     scheduler.cancelByKey('autoMsg_'+contactId);
     if(!data.replySettings.autoMsgEnabled) return;
@@ -4636,13 +4662,32 @@ function scheduleAutoMessageFor(contactId){
     if(isNaN(minM)||minM<0.1) minM=5;
     if(isNaN(maxM)||maxM<0.1) maxM=30;
     if(maxM<minM){const t=minM;minM=maxM;maxM=t;}
-    const delay=(minM+Math.random()*(maxM-minM))*60000;
-    scheduler.add(()=>{ sendPartnerAutoMessage(contactId); scheduleAutoMessageFor(contactId); },delay,'autoMsg_'+contactId);
+
+    // ⭐ 优先沿用之前存下的计划时间，没有才新排一个
+    let due = Number(_autoPlan[contactId]);
+    const tooFar  = due > Date.now() + maxM*60000 + 60000;   // 设置改小了，旧计划作废
+    const tooOld  = due < Date.now() - 24*3600*1000;          // 超过一天，作废重排
+    if(!due || !isFinite(due) || due <= 0 || tooFar || tooOld){
+        due = Date.now() + (minM + Math.random()*(maxM-minM))*60000;
+        _autoPlan[contactId] = due;
+        saveAutoPlan();
+    }
+
+    // baseTime 直接给"计划时间"，delay 给 0：
+    // 计划时间还没到 → 到点执行；已经过了（后台被冻住）→ 立刻补跑，但消息时间仍是原计划时间
+    scheduler.add(()=>{
+        delete _autoPlan[contactId];
+        saveAutoPlan();
+        sendPartnerAutoMessage(contactId);
+        scheduleAutoMessageFor(contactId);
+    }, 0, 'autoMsg_'+contactId, due);
 }
 function sendPartnerAutoMessage(contactId){
     const c = contactId ? getContact(contactId) : getActiveContact();
     if(!c || isGroup(c) || c.blocked) return;
     const cid = c.id;
+    // ⭐ 这批消息的"原计划时间"。补跑时以它为基准，气泡时间才是原本该发的时间
+    const plannedBase = _currentScheduledTime || Date.now();
     const s=data.replySettings;
     let minC=Number(s.autoMsgMinCount),maxC=Number(s.autoMsgMaxCount);
     if(isNaN(minC)||minC<1)minC=1;
@@ -4670,7 +4715,7 @@ function sendPartnerAutoMessage(contactId){
                 hideTypingIndicator(cid);
                 addMessage('partner',teText,'text',null,false,true,'',cid);
                 afterPartnerReply(cid);
-            },800+Math.random()*600,'autoMsgTextEmoji_'+cid);
+            },800+Math.random()*600,'autoMsgTextEmoji_'+cid, plannedBase);
             return;
         }
         wantTextEmoji = false;
@@ -4731,7 +4776,7 @@ function sendPartnerAutoMessage(contactId){
             if(index===0) hideTypingIndicator(cid);
             addMessage('partner',m.content,m.type,null,false,true,'',cid);
             if(index===msgs.length-1) afterPartnerReply(cid);
-        },800+index*step,'autoMsgSend_'+cid+'_'+index);
+        },800+index*step,'autoMsgSend_'+cid+'_'+index, plannedBase);
     });
 }
 // ======================================================================
@@ -6104,6 +6149,7 @@ try{
     if(statusTimer){clearTimeout(statusTimer);statusTimer=null;}
     Object.values(contactStatusTimers).forEach(t=>clearTimeout(t));contactStatusTimers={};
     scheduler.tasks=[];startRandomStatus();scheduleAutoMessage();closePlusPanel();
+    _autoPlan={};saveAutoPlan();
     typingContacts.clear();
     showToast('已清除所有数据');
 }
