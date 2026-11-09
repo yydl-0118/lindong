@@ -2144,8 +2144,18 @@ document.addEventListener('click',function(e){
     if(tgt && tgt.closest && !tgt.closest('.msg-bubble') && !tgt.closest('.msg-actions-bar')){
         document.querySelectorAll('.msg-actions-bar.show').forEach(x=>x.classList.remove('show'));
     }
+    
+    // ⭐ 点击外部取消撤回消息的展开状态（这次正确放在监听器里面了）
+    document.querySelectorAll('.recall-bubble[data-expanded="true"]').forEach(bubble => {
+        if (!bubble.contains(e.target)) {
+            const msgGroup = bubble.closest('.msg-group');
+            if (msgGroup) {
+                const msgId = msgGroup.dataset.id;
+                toggleRecallMessage(bubble, msgId);
+            }
+        }
+    });
 },false);
-
 // ======================================================================
 //  页面切换
 // ======================================================================
@@ -2381,7 +2391,7 @@ function buildMessageHtml(m,msgs){
         // ✅ 彻底去掉 msg-bubble 包裹，让卡片独立悬浮
         return `<div class="msg-group ${groupClass}" data-id="${m.id}" style="max-width:90%;">${sideHtml}<div class="msg-body" style="padding:0;background:transparent;">${cardHtml}</div></div>`;
     }
-    if(m.type === 'recall'){
+            if(m.type === 'recall'){
         const hasRecalled = (m.recalledType==='image'||m.recalledType==='emoji'||typeof m.recalledContent==='string') && (m.recalledContent!==undefined && m.recalledContent!==null);
         if(hasRecalled){
             const isMe = m.sender === 'me';
@@ -2391,30 +2401,37 @@ function buildMessageHtml(m,msgs){
             const avatarHtml = showAvatar ? `<div class="msg-avatar">${avatarHtmlFor(m.sender, m.senderId, m.senderName)}</div>` : '';
             const sideHtml = `<div class="msg-side">${avatarHtml}<span class="msg-side-time">${timeStr}</span></div>`;
             let recallContent = `<span style="color:var(--text-light);font-size:13px;">${escapeHtml(m.content)}</span>`;
-            return `<div class="msg-group ${groupClass}" data-id="${m.id}">${sideHtml}<div class="msg-body"><div class="msg-bubble recall-bubble" onclick="toggleRecallMessage(this, '${m.id}')">${recallContent}</div></div></div>`;
-        }
-        return `<div class="msg-system-center" data-id="${m.id}"><span><span class="sys-icon">↩</span>${escapeHtml(m.content)}</span></div>`;
-    }
+            
+                        // ⭐ 隐藏的引用操作条
+            let actionsHtml = `<div class="msg-actions-bar" data-actions-for="${m.id}">
+                <button onclick="event.stopPropagation(); replyToMessage('${m.id}'); toggleRecallMessage(this.closest('.msg-group').querySelector('.recall-bubble'), '${m.id}');">💬 引用</button>
+            </div>`;
 
-    const isMe = m.sender === 'me';
+            return `<div class="msg-group ${groupClass}" data-id="${m.id}">${sideHtml}<div class="msg-body">${actionsHtml}<div class="msg-bubble recall-bubble" onclick="handleRecallClick(event, '${m.id}')">${recallContent}</div></div></div>`;
+        }
+        // 纯文字系统撤回
+        return `<div class="msg-system-center" data-id="${m.id}" onclick="replyToMessage('${m.id}')" style="cursor:pointer;"><span><span class="sys-icon">↩</span>${escapeHtml(m.content)}</span></div>`;
+    }
+      const isMe = m.sender === 'me';
     const groupClass = isMe ? 'me' : 'other';
     const timeStr = formatTime(m.timestamp);
     const showAvatar = data.settings && data.settings.showAvatar !== false;
     let contentHtml = '', replyHtml = '', hasReply = false;
          /* ===== 引用消息：可点击跳转到被引用的原消息 ===== */
-    if(m.replyTo){
+        if(m.replyTo){
         const ref = msgs.find(x=>x.id===m.replyTo);
         if(ref){
             hasReply = true;
-            let refText = ref.content || '[消息]';
+            let refText = ref.content || '[消息]'; // ← 删掉重复的那行
             if(ref.type==='emoji'||ref.type==='image') refText = '[图片]';
-            if(ref.type==='recall') refText = ref.content || '[已撤回]';
-            if(refText.length > 24) refText = refText.slice(0,24)+'…';
+            if(ref.type==='recall') {
+                refText = ref.recalledContent || '[已撤回]';
+                if (ref.recalledType === 'image' || ref.recalledType === 'emoji') refText = '[图片]';
+            }
             const refWho = ref.sender === 'me' ? '我' : (ref.senderName || getActiveContact()?.name || '对方');
             replyHtml = `<span class="reply-ref" onclick="jumpToMessage(event,'${ref.id}')" title="点击跳转到原消息">↩ ${escapeHtml(refWho)}: ${escapeHtml(refText)}</span>`;
         }
     }
-
     let bubbleClass = 'msg-bubble';
     if(m.type === 'emoji' || m.type === 'image'){
         bubbleClass += ' emoji-bubble';
@@ -2478,26 +2495,50 @@ function jumpToMessage(e, refId){
     el.classList.add('msg-highlight');
     setTimeout(()=>el.classList.remove('msg-highlight'), 1700);
 }
+function handleRecallClick(e, msgId){
+    if(e) e.stopPropagation(); 
+    const el = e.currentTarget;
+    const isExpanded = el.dataset.expanded === 'true';
+    const bar = document.querySelector(`.msg-actions-bar[data-actions-for="${msgId}"]`);
+    
+    if(!isExpanded){
+        // 第一下：展开查看
+        toggleRecallMessage(el, msgId);
+    } else {
+        // 第二下：显示引用按钮
+        if(bar && !bar.classList.contains('show')){
+            document.querySelectorAll('.msg-actions-bar.show').forEach(x=>x.classList.remove('show'));
+            bar.classList.add('show');
+        } else {
+            if(bar) bar.classList.remove('show'); 
+        }
+    }
+}
 
 function toggleRecallMessage(el, msgId){
     const c = getActiveContact(); if(!c) return;
     const m = (c.messages||[]).find(x=>x.id===msgId); if(!m) return;
     const isExpanded = el.dataset.expanded === 'true';
+    const bar = document.querySelector(`.msg-actions-bar[data-actions-for="${msgId}"]`);
+    
     if(isExpanded){
+        // 恢复到：显示“对方撤回了一条消息”
         el.innerHTML = `<span style="color:var(--text-light);font-size:13px;">${escapeHtml(m.content)}</span>`;
         el.style.padding = '10px 14px';
         el.style.background = '';
         el.style.boxShadow = '';
         el.dataset.expanded = 'false';
+        if(bar) bar.classList.remove('show'); // 按钮也收起来
     } else {
+        // 展开：显示原内容
         if(m.recalledType === 'image' || m.recalledType === 'emoji'){
             const imgStyle = m.recalledType==='image' ? 'max-width:180px;max-height:200px;border-radius:8px;display:block;background:#fff;' : 'max-width:110px;max-height:120px;border-radius:8px;display:block;background:#fff;';
-            el.innerHTML = `<img src="${escapeHtml(m.recalledContent)}" style="${imgStyle}" loading="lazy">`;
-            el.style.padding = '0';
+            el.innerHTML = `<img src="${escapeHtml(m.recalledContent)}" style="${imgStyle}" loading="lazy"><div style="font-size:10px;color:var(--primary);margin-top:6px;text-align:center;background:#fff;border-radius:4px;padding:2px;">再次点击显示引用</div>`;
+            el.style.padding = '4px';
             el.style.background = 'transparent';
             el.style.boxShadow = 'none';
         } else {
-            el.innerHTML = escapeHtml(m.recalledContent || '').replace(/\n/g,'<br>');
+            el.innerHTML = escapeHtml(m.recalledContent || '').replace(/\n/g,'<br>') + `<div style="font-size:10px;color:var(--primary);margin-top:6px;text-align:center;">再次点击显示引用</div>`;
             el.style.padding = '10px 14px';
             el.style.background = '';
             el.style.boxShadow = '';
@@ -2912,7 +2953,7 @@ function schedulePartnerRecall(msgId, contactId){
         const el = document.querySelector(`.msg-group[data-id="${msgId}"]`);
         if(el) el.remove();
 
-        addMessage('partner', `${displayName} 撤回了一条消息`, 'recall', null, true, false, '', contactId, null, {
+                addMessage('partner', `${displayName} 撤回了一条消息`, 'recall', null, true, false, recalledSenderName, contactId, recalledSenderId, {
             recalledContent: recalledContent,
             recalledType: recalledType,
             recalledSenderName: recalledSenderName,
@@ -5252,13 +5293,23 @@ function pickAndSendImage(){closeMorePanel();const input=getPickImageInput();inp
 // ======================================================================
 //  消息操作
 // ======================================================================
-   function replyToMessage(id){
+  function replyToMessage(id){
     const c=getActiveContact();if(!c)return;
     const m=(c.messages||[]).find(x=>x.id===id);if(!m)return;
     document.querySelectorAll('.msg-actions-bar.show').forEach(x=>x.classList.remove('show'));
     currentReplyTarget=id;
-    let text=m.content||'';
-    if(m.type==='emoji'||m.type==='image')text='[图片]';
+    
+    // ⭐ 修复：如果是撤回消息，提取撤回的原内容
+    let text = m.content || '';
+    if (m.type === 'recall') {
+        text = m.recalledContent || '原消息';
+        if (m.recalledType === 'image' || m.recalledType === 'emoji') {
+            text = '[图片]';
+        }
+    } else if (m.type === 'emoji' || m.type === 'image') {
+        text = '[图片]';
+    }
+    
     if(text.length>30)text=text.slice(0,30)+'…';
     const who=m.sender==='me'?'我':(m.senderName||c.name||'对方');
     const preview=document.getElementById('replyPreview'),txt=document.getElementById('replyPreviewText');
