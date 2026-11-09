@@ -1040,228 +1040,144 @@ function tryRestoreCall(){
         showToast('📞 已恢复通话计时');
     }catch(e){}
 }
-// ====== 保活逻辑 ======
-let _chuanxunAudio = null;
-let _chuanxunUnlockBound = false;
-const CHUANXUN_AUDIO_SRC = 'https://img.heliar.top/file/1772885159972_silence.m4a';
+// ======================================================================
+//  后台保活：静音音频 + MediaSession（不抢其他App声音）
+// ======================================================================
+let _keepAliveAudio = null;
+let _keepAliveWatchTimer = null;
+let _keepAliveUnlockBound = false;
+let _silentWavUrl = null;
 
-// 空函数，防止旧代码其他地方调用报错
-function applyKeepAliveAudio() {} 
+// 动态生成一段 1 秒静音 WAV（16bit 单声道 8kHz）
+function _buildSilentWavUrl(){
+    if(_silentWavUrl) return _silentWavUrl;
+    try{
+        const sampleRate = 8000;
+        const numSamples = 8000;
+        const dataSize = numSamples * 2;
+        const buffer = new ArrayBuffer(44 + dataSize);
+        const view = new DataView(buffer);
+        const ws = (o, s) => { for(let i=0;i<s.length;i++) view.setUint8(o+i, s.charCodeAt(i)); };
+        ws(0,'RIFF'); view.setUint32(4, 36+dataSize, true); ws(8,'WAVE');
+        ws(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true);
+        view.setUint16(22,1,true); view.setUint32(24,sampleRate,true);
+        view.setUint32(28,sampleRate*2,true); view.setUint16(32,2,true);
+        view.setUint16(34,16,true); ws(36,'data'); view.setUint32(40,dataSize,true);
+        let bin = ''; const bytes = new Uint8Array(buffer); const CH = 8192;
+        for(let i=0;i<bytes.length;i+=CH){ bin += String.fromCharCode.apply(null, bytes.subarray(i,i+CH)); }
+        _silentWavUrl = 'data:audio/wav;base64,' + btoa(bin);
+    }catch(e){ _silentWavUrl = ''; }
+    return _silentWavUrl;
+}
 
 function startKeepAliveAudio(){
-    if (!data.settings || !data.settings.keepAlive) return;
+    if(!data.settings || !data.settings.keepAlive) return;
+    _startKeepAliveCore();
+}
 
-    if (!_chuanxunAudio) {
-        _chuanxunAudio = new Audio(CHUANXUN_AUDIO_SRC);
-        _chuanxunAudio.loop = true;
-        _chuanxunAudio.volume = 0.01; // 音量
-        _chuanxunAudio.preload = 'auto';
-        _chuanxunAudio.addEventListener('pause', () => updateKeepAliveState());
-        _chuanxunAudio.addEventListener('play', () => updateKeepAliveState());
-    }
-
-    const playPromise = _chuanxunAudio.play();
-    if (playPromise && playPromise.then) {
-        playPromise.catch(() => {
-            // 被浏览器拦截时，等用户点击屏幕再启动
-            if (!_chuanxunUnlockBound) {
-                _chuanxunUnlockBound = true;
-                function unlock(){ 
-                    if(data.settings.keepAlive) _chuanxunAudio.play().catch(()=>{}); 
-                    _chuanxunUnlockBound = false; 
+function _startKeepAliveCore(){
+    try{
+        // 1. 静音 <audio> 循环：让 Chrome 认为页面在"放音频"，从而不深度节流
+        if(!_keepAliveAudio){
+          const src = (data.settings && data.settings.keepAudioData) || _buildSilentWavUrl();
+const a = new Audio(src);
+            a.loop = true;
+            a.volume = 0.001;      // 极低音量，听觉上几乎无感，不会打断你在听的其他App
+            a.preload = 'auto';
+            a.setAttribute('playsinline','');
+            a.setAttribute('webkit-playsinline','');
+            a.addEventListener('play', updateKeepAliveState);
+            a.addEventListener('pause', ()=>{
+                if(data.settings && data.settings.keepAlive){
+                    setTimeout(()=>{
+                        if(data.settings && data.settings.keepAlive){
+                            try{ _keepAliveAudio.play().catch(()=>{}); }catch(e){}
+                        }
+                    }, 900);
                 }
-                document.addEventListener('touchstart', unlock, { once:true });
-                document.addEventListener('click', unlock, { once:true });
-            }
-        });
-    }
-    updateKeepAliveState();
-}
-
-function stopKeepAliveAudio(){
-    if (_chuanxunAudio) { 
-        _chuanxunAudio.pause(); 
-        _chuanxunAudio.currentTime = 0; 
-    }
-    updateKeepAliveState();
-}
-
-function updateKeepAliveState(){
-    const el = document.getElementById('keepAliveState');
-    if (!el) return;
-    if (!data.settings.keepAlive) {
-        el.textContent = '已关闭';
-        return;
-    }
-    const playing = !!(_chuanxunAudio && !_chuanxunAudio.paused);
-    el.textContent = playing ? '运行中 ✅' : '等待交互后启动…';
-}
-
-function testKeepAlive(){
-    if (!data.settings.keepAlive) { showToast('请先开启后台保活'); return; }
-    startKeepAliveAudio();
-    updateKeepAliveState();
-    showToast('保活已触发，请切到后台 30 秒后再回来查看消息');
-}
-function buildKeepAliveAudio(){
-    if (keepAliveAudioEl) return keepAliveAudioEl;
-    const a = document.createElement('audio');
-    a.loop = true;
-    a.preload = 'auto';
-    a.setAttribute('playsinline', '');
-    a.setAttribute('webkit-playsinline', '');
-    a.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
-    document.body.appendChild(a);
-    keepAliveAudioEl = a;
-    return a;
-}
-
-function getKeepAliveSrc(){
-    const st = data.settings || {};
-    if (st.keepAudioData) return st.keepAudioData;
-    if (!_defaultKeepAliveSrc) _defaultKeepAliveSrc = makeSilentWavDataUrl(2);
-    return _defaultKeepAliveSrc;
-}
-
-function applyKeepAliveAudio(){
-    const a = buildKeepAliveAudio();
-    const st = data.settings || {};
-    const src = getKeepAliveSrc();
-    if (a.src !== src) { a.src = src; try { a.load(); } catch (e) {} }
-    a.loop = true;
-    // 关键：绝不能用 muted / volume=0，否则浏览器判定页面"没在放声音"继续节流
-    a.muted = false;
-    if (st.keepNoduck) {
-        a.volume = 0.001;                // 极低音量，几乎听不到，但 audible=true
-    } else {
-        a.volume = st.keepAudioData ? 1 : 0.01;
-    }
-}
-function startKeepAliveAudio(){
-    try { startTickWorker(); } catch (e) {}
-    requestWakeLock();
-    applyKeepAliveAudio();
-    const st = data.settings || {};
-    
-    // ⭐ 核心杀手锏 1：启用 MediaSession，让系统以为你是一个原生音乐播放器
-    try {
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: '临冬正在后台守候',
-                artist: '请勿关闭，保持消息接收',
-                album: '临冬',
-                artwork: [{ src: 'icon.png', sizes: '192x192', type: 'image/png' }]
+                updateKeepAliveState();
             });
-            navigator.mediaSession.playbackState = "playing";
-            navigator.mediaSession.setActionHandler('pause', () => {
-                 navigator.mediaSession.playbackState = "playing";
-            });
+            _keepAliveAudio = a;
         }
-    } catch(e){ console.warn('MediaSession启动失败', e); }
+        const p = _keepAliveAudio.play();
+        if(p && p.catch) p.catch(()=>{});
 
-    const a = keepAliveAudioEl;
-    
-    // ⭐ 核心杀手锏 2：防顶掉机制
-    if (a && !a._keepAliveBound) {
-        a._keepAliveBound = true;
-        a.addEventListener('pause', () => {
-            if (data.settings.keepAlive && !(data.music && data.music.playing)) {
-                setTimeout(() => {
-                    try {
-                        a.volume = 0.05; // 稍微留点音量，防止被系统判定为静音杀后台
-                        a.play().catch(()=>{}); 
-                    } catch(e){}
-                }, 1000); 
-            }
-        });
-    }
-
-    // 正常启动播放
-    if (a) {
-        const tryPlay = () => {
-            if (data.music && data.music.playing) {
-                a.volume = 0.001;
-            } else {
-                // 如果没有自定义音频，用 0.05 的音量（太小会被杀）
-                a.volume = st.keepAudioData ? 1 : 0.05; 
-            }
-            const p = a.play();
-            if (p && p.catch) p.catch(()=>{});
-        };
-        tryPlay();
-        setTimeout(() => { if (a.paused) tryPlay(); }, 1200);
-        setTimeout(() => { if (a.paused) tryPlay(); }, 4000);
-    }
-
-    if (keepAliveTimer) clearInterval(keepAliveTimer);
-    keepAliveTimer = setInterval(() => {
-        if (!st.keepAlive) return;
-        if (!_tickWorker) { try { startTickWorker(); } catch (e) {} }
-        if (!wakeLock && document.visibilityState === 'visible') { requestWakeLock(); }
-        
-        if (a && a.paused && !(data.music && data.music.playing)) {
-             a.volume = st.keepAudioData ? 1 : 0.05;
-             a.play().catch(()=>{});
-        }
-        
-        // ⭐ 核心杀手锏 3：强制刷新界面状态（解决截图里的“—”）
-        try {
-            const el = document.getElementById('keepAliveState');
-            if (el) {
-                const playing = !!(a && !a.paused);
-                el.textContent = playing ? '运行中 ✅' : '已开启，请点击页面唤醒';
-            }
-        } catch(e) {}
-        
-    }, 15000);
-    
-    if (data.settings.keepFgquiet && document.visibilityState === 'visible' && a) {
-        try { a.pause(); } catch (e) {}
-    }
-    
-    // 初始化也刷新一次状态
-    setTimeout(()=>{
+        // 2. MediaSession：让系统识别为"媒体应用"获取后台存活，
+        //    但故意不设置 playbackState='playing'，因此不会抢音频焦点、不会中断你正在听的其他App
         try{
-            const el = document.getElementById('keepAliveState');
-            if(el && el.textContent === '—') {
-                el.textContent = (a && !a.paused) ? '运行中 ✅' : '已开启，请点击页面唤醒';
+            if('mediaSession' in navigator && !navigator.mediaSession._ldBound){
+                navigator.mediaSession._ldBound = true;
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: '临冬后台守护中',
+                    artist: '临冬',
+                    album: '临冬',
+                    artwork: [{ src: 'icon.png', sizes: '192x192', type: 'image/png' }]
+                });
+                // 不设 playbackState，避免抢音频焦点
+                const safeHandler = (h)=>{ try{ navigator.mediaSession.setActionHandler(h, ()=>{}); }catch(e){} };
+                ['pause','play','stop','seekbackward','seekforward','seekto','previoustrack','nexttrack'].forEach(safeHandler);
             }
         }catch(e){}
-    }, 1000);
+
+        updateKeepAliveState();
+
+        // 3. 兜底：每 15 秒检查一次，被系统暂停就重新拉起
+        if(_keepAliveWatchTimer) clearInterval(_keepAliveWatchTimer);
+        _keepAliveWatchTimer = setInterval(()=>{
+            if(!data.settings || !data.settings.keepAlive) return;
+            if(_keepAliveAudio && _keepAliveAudio.paused){
+                try{ _keepAliveAudio.play().catch(()=>{}); }catch(e){}
+            }
+            updateKeepAliveState();
+        }, 15000);
+    }catch(e){ console.warn('[保活] 启动失败', e); }
 }
+
 function stopKeepAliveAudio(){
-    if (keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
-    if (keepAliveFgQuietTimer) { clearTimeout(keepAliveFgQuietTimer); keepAliveFgQuietTimer = null; }
-    const a = keepAliveAudioEl;
-    if (a) { try { a.pause(); } catch (e) {} }
-    releaseWakeLock();
+    if(_keepAliveWatchTimer){ clearInterval(_keepAliveWatchTimer); _keepAliveWatchTimer = null; }
+    if(_keepAliveAudio){ try{ _keepAliveAudio.pause(); _keepAliveAudio.currentTime = 0; }catch(e){} }
+    try{
+        if('mediaSession' in navigator){
+            navigator.mediaSession.metadata = null;
+        }
+    }catch(e){}
     updateKeepAliveState();
 }
 
 function updateKeepAliveState(){
     const el = document.getElementById('keepAliveState');
-    if (!el) return;
-    const a = keepAliveAudioEl;
-    const playing = !!(a && !a.paused);
-    const st = data.settings || {};
-    let txt = st.keepAlive ? (playing ? '运行中 ✅' : '已开启，等待音频恢复') : '已关闭';
-    if (st.keepFgquiet && document.visibilityState === 'visible') txt += ' · 前台省电';
-    if (st.keepNoduck) txt += ' · 静音通道';
-    el.textContent = txt;
+    if(!el) return;
+    if(!data.settings || !data.settings.keepAlive){
+        el.textContent = '已关闭';
+        el.style.color = '#ef4444';
+        return;
+    }
+    const playing = !!(_keepAliveAudio && !_keepAliveAudio.paused);
+    el.textContent = playing ? '运行中 ✅' : '已开启，请点击页面唤醒';
+    el.style.color = playing ? '#10b981' : '#F59E0B';
 }
 
 function testKeepAlive(){
-    if (!data.settings.keepAlive) { showToast('请先开启后台保活'); return; }
-    startKeepAliveAudio();
+    if(!data.settings || !data.settings.keepAlive){ showToast('请先开启后台保活'); return; }
+    _startKeepAliveCore();
     updateKeepAliveState();
     showToast('保活已触发，请切到后台 30 秒后再回来查看消息');
 }
-document.addEventListener('visibilitychange', () => {
-    if (data.settings.keepAlive && document.visibilityState === 'visible' && _chuanxunAudio && _chuanxunAudio.paused) {
-        _chuanxunAudio.play().catch(()=>{});
-    }
-});
-/* ---------- 启动 / 停止 ---------- */
+
+// 首次用户手势 → 解锁静音音频自动播放
+function _bindKeepAliveUnlock(){
+    if(_keepAliveUnlockBound) return;
+    _keepAliveUnlockBound = true;
+    const unlock = ()=>{
+        if(data.settings && data.settings.keepAlive){
+            _startKeepAliveCore();
+        }
+    };
+    document.addEventListener('touchstart', unlock, {once:true, passive:true, capture:true});
+    document.addEventListener('click', unlock, {once:true, capture:true});
+}
+// 兼容旧代码里可能残留的调用
+function applyKeepAliveAudio(){}
 /* ---------- 启动 / 停止 ---------- */
 async function showSystemNotification(msg, force, contactId){
     if(!data.settings) return;
@@ -2107,7 +2023,7 @@ function confirmDeleteContact(id){
     data.contacts = data.contacts.filter(x=>x.id !== id);
     data.contacts.forEach(x=>{if(isGroup(x)) x.members = (x.members||[]).filter(m=>m!==id);});
     if(data.activeContactId === id) data.activeContactId = null;
-    if(replyTimers[id]){clearTimeout(replyTimers[id]);delete replyTimers[id];}
+    scheduler.cancelByKey('partnerReply_'+id);
     data.wordCards.groups = data.wordCards.groups.filter(g => !(g.scope==='private' && g.ownerId===id));
     ['place','action'].forEach(k=>{data.clockCards[k] = data.clockCards[k].filter(c=>!(c.scope==='private' && c.ownerId===id));});
     if(data.letters && Array.isArray(data.letters.list)){
@@ -2698,17 +2614,17 @@ function getAllCards(){
 function schedulePartnerReply(){
     const c = getActiveContact();
     if(!c || c.blocked){ if(c) hideTypingIndicator(c.id); return; }
-    if(replyTimers[c.id]){clearTimeout(replyTimers[c.id]);delete replyTimers[c.id];}
     const s = data.replySettings;
     let minS = Number(s.minSeconds), maxS = Number(s.maxSeconds);
     if(isNaN(minS)||minS<0.5) minS=3;
     if(isNaN(maxS)||maxS<0.5) maxS=30;
     if(maxS<minS){const t=minS;minS=maxS;maxS=t;}
     const delay = (minS + Math.random()*(maxS-minS))*1000;
-    replyTimers[c.id] = setTimeout(()=>{
-        delete replyTimers[c.id];
+    // ✅ 用 scheduler.add：基于绝对时间戳，切后台也能在到期时按原定时间触发
+    scheduler.cancelByKey('partnerReply_'+c.id);
+    scheduler.add(()=>{
         generatePartnerReply(c.id);
-    },delay);
+    }, delay, 'partnerReply_'+c.id);
 }
 function pickQuoteTarget(contactId){
     const c = contactId ? getContact(contactId) : getActiveContact(); if(!c) return null;
@@ -3505,7 +3421,7 @@ function toggleBlockContact(){
     if(!c.blocked){
         if(!confirm(`确定拉黑「${c.name}」吗？拉黑后对方将无法主动发消息和回复。`)) return;
         c.blocked = true;
-        if(replyTimers[c.id]){ clearTimeout(replyTimers[c.id]); delete replyTimers[c.id]; }
+        scheduler.cancelByKey('partnerReply_'+c.id);
         scheduler.cancelByKey('autoMsg_'+c.id);
         scheduler.cancelByKey('groupAuto_'+c.id);
         typingContacts.delete(c.id);
@@ -3609,7 +3525,7 @@ function deleteActiveContact(){
     if(data.letters && Array.isArray(data.letters.list)){
         data.letters.list = data.letters.list.filter(l=>l.contactId !== c.id);
     }
-    if(replyTimers[c.id]){clearTimeout(replyTimers[c.id]);delete replyTimers[c.id];}
+    scheduler.cancelByKey('partnerReply_'+c.id);
     scheduler.cancelByKey('groupAuto_'+c.id);
     scheduler.cancelByKey('autoMsg_'+c.id);
     typingContacts.delete(c.id);
@@ -4519,7 +4435,7 @@ function buildHelpSettingsHtml(){
             key: 'design',
             title: '字卡设计与借鉴',
             content: `1. 查岗的玩法是自己想出来的。<br>
-2.临冬的后台保活还有消息弹窗修复时总有问题，后面借鉴了小红书：@milk（2777299956）和@言序（1842523578）。感谢两位老师<br>
+2.临冬的后台保活修复时总有问题，后面借鉴了小红书：@milk（2777299956）和@言序（1842523578）。感谢两位老师<br>
 3. 消息撤回和主动发信息标识参考了小红书@言序（1842523578）。`
         }
     ];
@@ -6543,9 +6459,12 @@ async function init(){
     scheduleAutoMessage();
     data.contacts.forEach(c=>{ if(isGroup(c) && c.groupAuto && c.groupAuto.enabled) scheduleGroupAuto(c.id); });
     
-       // ========== 启动后台保活 ==========
-    try{ applyKeepAliveAudio(); }catch(e){}
-    if(data.settings.keepAlive) startKeepAliveAudio();
+       // ========== 启动后台保活（静音音频 + MediaSession） ==========
+try{ _bindKeepAliveUnlock(); }catch(e){}
+if(data.settings.keepAlive){
+    try{ startKeepAliveAudio(); }catch(e){}
+}
+try{ updateKeepAliveState(); }catch(e){}
     document.addEventListener('click', requestNotifPermissionOnGesture, {once:true, capture:true});
     document.addEventListener('touchstart', requestNotifPermissionOnGesture, {once:true, capture:true});
     document.addEventListener('touchstart',unlockAudioOnce,{once:true,passive:true});
@@ -6603,129 +6522,6 @@ async function init(){
     switchPage('contacts');
     console.log('💜 临冬 已启动');
 }
-
-/* ===== 后台保活修复（features.js 同款 m4a 音频）+ 开屏防卡死 + 状态实时刷新 ===== */
-(function(){
-    const SRC = 'https://img.heliar.top/file/1772885159972_silence.m4a';
-    let _audio = null;
-    let _unlockBound = false;
-
-    function _getAudio(){
-        if(_audio) return _audio;
-        _audio = new Audio(SRC);
-        _audio.loop = true;
-        _audio.volume = 0.01;
-        _audio.preload = 'auto';
-        _audio.addEventListener('play',  ()=>{ _refreshUI(); });
-        _audio.addEventListener('pause', ()=>{ _refreshUI(); });
-        return _audio;
-    }
-
-    function _refreshUI(){
-        try{
-            const el = document.getElementById('keepAliveState');
-            if(!el) return;
-            if(!data.settings || !data.settings.keepAlive){ 
-                el.textContent = '已关闭'; 
-                el.style.color = '#ef4444';
-                return; 
-            }
-            const isPlaying = (_audio && !_audio.paused);
-            el.textContent = isPlaying ? '运行中 ✅' : '已开启，等待点击唤醒…';
-            el.style.color = isPlaying ? '#10b981' : '#F59E0B';
-        }catch(e){}
-    }
-
-    function _start(){
-        try{
-            if(!data.settings || !data.settings.keepAlive) return;
-            const a = _getAudio();
-            const p = a.play();
-            if(p && p.catch){
-                p.catch(()=>{
-                    if(!_unlockBound){
-                        _unlockBound = true;
-                        function unlock(){
-                            if(data.settings.keepAlive) a.play().catch(()=>{});
-                            _unlockBound = false;
-                        }
-                        document.addEventListener('touchstart', unlock, {once:true});
-                        document.addEventListener('click', unlock, {once:true});
-                    }
-                    _refreshUI();
-                });
-            }
-            _refreshUI();
-        }catch(e){ console.warn('保活启动失败', e); }
-    }
-
-    function _stop(){
-        try{
-            if(_audio){ _audio.pause(); _audio.currentTime = 0; }
-            _refreshUI();
-        }catch(e){}
-    }
-
-    window.startKeepAliveAudio   = _start;
-    window.stopKeepAliveAudio    = _stop;
-    window.updateKeepAliveState  = _refreshUI;
-    window.applyKeepAliveAudio   = function(){};
-    window.testKeepAlive = function(){
-        if(!data.settings.keepAlive){ showToast('请先开启后台保活'); return; }
-        _start();
-        _refreshUI();
-        showToast('保活已触发，请切到后台 30 秒后再回来查看消息');
-    };
-
-    // ⭐ 核心修复：每次重新渲染设置页时，自动刷新保活状态
-    if(typeof window.renderSettingsSubPage === 'function'){
-        const _originalRender = window.renderSettingsSubPage;
-        window.renderSettingsSubPage = function(key){
-            _originalRender(key);
-            if(key === 'sound'){
-                // 等 DOM 渲染出来后再更新状态
-                setTimeout(_refreshUI, 50);
-                setTimeout(_refreshUI, 500); 
-            }
-        };
-    }
-
-    document.addEventListener('visibilitychange', ()=>{
-        try{
-            if(data.settings.keepAlive && document.visibilityState === 'visible' && _audio && _audio.paused){
-                _audio.play().catch(()=>{});
-            }
-            _refreshUI();
-        }catch(e){}
-    });
-
-    // 强行提亮“保活测试”按钮
-    const style = document.createElement('style');
-    style.textContent = `
-        .plus-body-inner button[onclick="testKeepAlive()"] {
-            color: var(--primary) !important;
-            border-color: var(--primary) !important;
-            font-weight: 600 !important;
-            opacity: 1 !important;
-        }
-    `;
-    document.head.appendChild(style);
-
-    /* 开屏防卡死：无论 init 里报什么错，3.5 秒内开屏一定消失 */
-    window.addEventListener('error', function(){
-        const s = document.getElementById('splash');
-        if(s) s.classList.add('hide');
-    });
-    window.addEventListener('unhandledrejection', function(){
-        const s = document.getElementById('splash');
-        if(s) s.classList.add('hide');
-    });
-    setTimeout(function(){
-        const s = document.getElementById('splash');
-        if(s && !s.classList.contains('hide')) s.classList.add('hide');
-    }, 3500);
-})();
-/* ===== end 补丁 ===== */
 document.addEventListener('DOMContentLoaded',init);
 </script>
 </body>
