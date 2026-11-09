@@ -1064,12 +1064,20 @@ let _keepAliveUnlockBound = false;
 let _silentWavUrl = null;
 
 // 动态生成一段 1 秒静音 WAV（16bit 单声道 8kHz）
+/* 保活音频：1 秒 18kHz 正弦波，幅度 0.02（≈-60dBFS）
+   ⭐ 关键：不能是"数字全零"的静音 WAV —— Chrome 会判定为"没有在播音频"，
+   后台 5 秒就冻结。必须是"非零样本 + volume>0"。18kHz 人耳几乎听不到，
+   手机外放高频还会天然滚降，所以听感上是"没声音"，但系统认为在播。
+   （这套取自知乎/mochi 的 bg-keep.js：#260 18kHz@0.02 是安卓的实测下限） */
 function _buildSilentWavUrl(){
     if(_silentWavUrl) return _silentWavUrl;
     try{
-        const sampleRate = 8000;
-        const numSamples = 8000;
-        const dataSize = numSamples * 2;
+        const sampleRate = 44100;
+        const sec = 1;
+        const n = sampleRate * sec;
+        const amp = 0.02;
+        const freq = 18000;            // 一整周期，循环接缝无跳变
+        const dataSize = n * 2;
         const buffer = new ArrayBuffer(44 + dataSize);
         const view = new DataView(buffer);
         const ws = (o, s) => { for(let i=0;i<s.length;i++) view.setUint8(o+i, s.charCodeAt(i)); };
@@ -1078,7 +1086,12 @@ function _buildSilentWavUrl(){
         view.setUint16(22,1,true); view.setUint32(24,sampleRate,true);
         view.setUint32(28,sampleRate*2,true); view.setUint16(32,2,true);
         view.setUint16(34,16,true); ws(36,'data'); view.setUint32(40,dataSize,true);
-        let bin = ''; const bytes = new Uint8Array(buffer); const CH = 8192;
+        for(let i=0;i<n;i++){
+            const v = Math.sin(2*Math.PI*freq*(i/sampleRate)) * amp;
+            view.setInt16(44+i*2, Math.round(v*32767), true);
+        }
+        const bytes = new Uint8Array(buffer);
+        let bin = ''; const CH = 8192;
         for(let i=0;i<bytes.length;i+=CH){ bin += String.fromCharCode.apply(null, bytes.subarray(i,i+CH)); }
         _silentWavUrl = 'data:audio/wav;base64,' + btoa(bin);
     }catch(e){ _silentWavUrl = ''; }
@@ -1090,22 +1103,87 @@ function startKeepAliveAudio(){
     _startKeepAliveCore();
 }
 
-/* ---------- 保活：静音通道 / 出声通道（借鉴言字卡的做法） ----------
-   - 静音通道：muted=true、volume=0 → 播放时不申请音频焦点，不会压低你在看的视频/在听的歌
-   - 出声通道：muted=false → 系统把静音通道挂起时，用它把页面重新撑起来（会抢焦点）
-   - 开了「不抢其他 App 的声音」= 只允许静音通道，永不自动换出声通道
+/* ---------- 保活（照搬 mochi / bg-keep.js 里真正有效的两条防冻结锚点） ----------
+   锚点①：<audio> 循环播放 1 秒 18kHz 正弦波，volume=0.05
+          必须「样本非零 + volume>0」。数字全零或 muted 会被 Chrome 判为"没在播"，后台 5 秒冻结。
+          18kHz 人耳几乎听不到（手机外放高频天然滚降），听感上就是没声音。
+   锚点②：页面内一对回环 RTCPeerConnection + DataChannel —— WebRTC 也是 Chrome 的冻结豁免信号。
+   另外：mediaSession 持续声明 playbackState='playing'；被打断按 5s→10s→20s（后台封顶 20s）退避补播，
+        不做每 5 秒硬抢，减少和其他 App 抢音频焦点的拉锯。
 */
 let _keepAliveRetries = 0;
+let _kaTimer = null, _kaDelay = 0, _kaStreak = 0;
+let _kaPc1 = null, _kaPc2 = null, _kaRebuildTimer = null;
 
-function _setKeepAliveChannel(forceAudible){
+function _setKeepAliveChannel(){
     const a = _keepAliveAudio; if(!a) return;
     const hasCustom = !!(data.settings && data.settings.keepAudioData);
-    const noduck = !!(data.settings && data.settings.keepNoduck);
-    if(noduck && !forceAudible){
-        a.muted = true;  a.volume = 0;                          // 静音通道
-    }else{
-        a.muted = false; a.volume = hasCustom ? 0.5 : 0.001;    // 出声通道
-    }
+    a.muted = false;                    // 绝不能 muted：muted 等于"没在播"，必被冻
+    a.volume = hasCustom ? 0.5 : 0.05;  // 低但非零；太低会被 Chrome 无声节流
+}
+
+function _kaNextDelay(){
+    _kaStreak++;
+    let d = Math.min(5000 * Math.pow(2, Math.min(_kaStreak - 1, 10)), 60000);
+    // Chromium 139+ 安卓后台冻结线约 1 分钟：隐藏时补播间隔必须压到 20s 内，否则醒不过来
+    if(document.visibilityState === 'hidden' && d > 20000) d = 20000;
+    return d;
+}
+function _kaAfterPlay(){
+    const a = _keepAliveAudio;
+    if(data.settings && data.settings.keepAlive && a && a.paused) _kaScheduleRetry(Math.min((_kaDelay || 5000) * 2, 20000));
+    updateKeepAliveState();
+}
+function _kaScheduleRetry(delayMs){
+    if(!data.settings || !data.settings.keepAlive || _kaTimer) return;
+    _kaDelay = delayMs || _kaNextDelay();
+    _kaTimer = setTimeout(()=>{
+        _kaTimer = null;
+        const a = _keepAliveAudio;
+        if(!data.settings || !data.settings.keepAlive || !a) return;
+        if(!a.paused) return;
+        const p = a.play();
+        if(p && p.then) p.then(_kaAfterPlay, _kaAfterPlay); else _kaAfterPlay();
+    }, _kaDelay);
+}
+function _kaWebrtcStart(){
+    if(_kaPc1 || _kaPc2) return;
+    if(_kaRebuildTimer){ clearTimeout(_kaRebuildTimer); _kaRebuildTimer = null; }
+    if(typeof RTCPeerConnection === 'undefined') return;
+    try{
+        const cand1 = [], cand2 = [];
+        const p1 = new RTCPeerConnection(), p2 = new RTCPeerConnection();
+        p1.onicecandidate = (e)=>{ if(e.candidate) cand1.push(e.candidate); };
+        p2.onicecandidate = (e)=>{ if(e.candidate) cand2.push(e.candidate); };
+        p1.createDataChannel('lingdong-ka');
+        p1.createOffer()
+          .then(o=>p1.setLocalDescription(o))
+          .then(()=>p2.setRemoteDescription(p1.localDescription))
+          .then(()=>p2.createAnswer())
+          .then(a=>p2.setLocalDescription(a))
+          .then(()=>p1.setRemoteDescription(p2.localDescription))
+          .then(()=>{
+              try{ cand2.forEach(c=>p1.addIceCandidate(c)); }catch(e){}
+              try{ cand1.forEach(c=>p2.addIceCandidate(c)); }catch(e){}
+          })
+          .catch(()=>{ _kaWebrtcStop(); });
+        p1.onconnectionstatechange = ()=>{
+            const st = p1.connectionState;
+            if(st === 'failed' || st === 'disconnected' || st === 'closed'){
+                _kaWebrtcStop();
+                if(data.settings && data.settings.keepAlive && !_kaRebuildTimer){
+                    _kaRebuildTimer = setTimeout(()=>{ _kaRebuildTimer = null; _kaWebrtcStart(); }, 30000);
+                }
+            }
+        };
+        _kaPc1 = p1; _kaPc2 = p2;
+    }catch(e){}
+}
+function _kaWebrtcStop(){
+    try{ if(_kaPc1) _kaPc1.close(); }catch(e){}
+    try{ if(_kaPc2) _kaPc2.close(); }catch(e){}
+    _kaPc1 = null; _kaPc2 = null;
+    if(_kaRebuildTimer){ clearTimeout(_kaRebuildTimer); _kaRebuildTimer = null; }
 }
 
 function _startKeepAliveCore(){
@@ -1120,68 +1198,63 @@ function _startKeepAliveCore(){
             a.preload = 'auto';
             a.setAttribute('playsinline','');
             a.setAttribute('webkit-playsinline','');
-            a.addEventListener('play', ()=>{ _keepAliveRetries = 0; updateKeepAliveState(); });
+            a.addEventListener('play', ()=>{ _kaStreak = 0; _kaDelay = 0; updateKeepAliveState(); });
             a.addEventListener('pause', ()=>{
                 updateKeepAliveState();
                 if(!data.settings || !data.settings.keepAlive) return;
-                // 被系统挂起：先按静音通道重试，绝不主动换出声通道
-                setTimeout(()=>{
-                    if(!data.settings || !data.settings.keepAlive) return;
-                    if(_keepAliveAudio && _keepAliveAudio.paused){
-                        _setKeepAliveChannel(false);
-                        try{ _keepAliveAudio.play().catch(()=>{}); }catch(e){}
-                    }
-                }, 900);
+                // 被其他 App 打断：不硬抢；开了「不抢」走退避，没开就 1 秒后立刻补播
+                if(data.settings.keepNoduck) _kaScheduleRetry();
+                else _kaScheduleRetry(1000);
             });
             _keepAliveAudio = a;
-            _setKeepAliveChannel(false);
+            _setKeepAliveChannel();
         }
 
-        _setKeepAliveChannel(false);
+        _setKeepAliveChannel();
         const p = _keepAliveAudio.play();
         if(p && p.catch) p.catch(()=>{});
 
-        // MediaSession：仅让系统知道这是媒体页；开了「不抢」就不声明 playing，避免被当成在放歌
+        // 媒体会话：让系统把它当成"正在播放媒体"的页面（冻结豁免的一部分）
         try{
             if('mediaSession' in navigator){
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: '临冬后台守护中', artist: '临冬', album: '临冬',
                     artwork: [{ src: 'icon.png', sizes: '192x192', type: 'image/png' }]
                 });
-                if(!data.settings.keepNoduck){
-                    try{ navigator.mediaSession.playbackState = 'playing'; }catch(e){}
-                }
+                try{ navigator.mediaSession.playbackState = 'playing'; }catch(e){}
                 const safeHandler = (h)=>{ try{ navigator.mediaSession.setActionHandler(h, ()=>{}); }catch(e){} };
                 ['pause','play','stop','seekbackward','seekforward','seekto','previoustrack','nexttrack'].forEach(safeHandler);
             }
         }catch(e){}
 
+        _kaWebrtcStart();   // 第二条冻结豁免锚点
         updateKeepAliveState();
 
-        // 兜底看门狗：每 15 秒检查一次
-        // 静音通道连续两次拉不起来、且「不抢」没开时，才换出声通道；开了「不抢」就只重试静音通道
         if(_keepAliveWatchTimer) clearInterval(_keepAliveWatchTimer);
         _keepAliveWatchTimer = setInterval(()=>{
             if(!data.settings || !data.settings.keepAlive) return;
             const a = _keepAliveAudio; if(!a) return;
-            if(a.paused){
-                _keepAliveRetries++;
-                if(_keepAliveRetries >= 2 && !data.settings.keepNoduck) _setKeepAliveChannel(true);
-                try{ a.play().catch(()=>{}); }catch(e){}
-            }else{
-                _keepAliveRetries = 0;
+            if(!a.paused){
+                try{ if(navigator.mediaSession) navigator.mediaSession.playbackState = 'playing'; }catch(e){}
+            }else if(!_kaTimer){
+                _kaScheduleRetry();
             }
+            if(!_kaPc1 && !_kaRebuildTimer) _kaWebrtcStart();
             updateKeepAliveState();
-        }, 15000);
+        }, 5000);
     }catch(e){ console.warn('[保活] 启动失败', e); }
 }
 
 function stopKeepAliveAudio(){
     if(_keepAliveWatchTimer){ clearInterval(_keepAliveWatchTimer); _keepAliveWatchTimer = null; }
+    if(_kaTimer){ clearTimeout(_kaTimer); _kaTimer = null; }
+    _kaDelay = 0; _kaStreak = 0;
+    _kaWebrtcStop();
     if(_keepAliveAudio){ try{ _keepAliveAudio.pause(); _keepAliveAudio.currentTime = 0; }catch(e){} }
     try{
         if('mediaSession' in navigator){
             navigator.mediaSession.metadata = null;
+            try{ navigator.mediaSession.playbackState = 'none'; }catch(e){}
         }
     }catch(e){}
     updateKeepAliveState();
@@ -1205,21 +1278,20 @@ function updateKeepAliveState(){
     }
     const a = _keepAliveAudio;
     const playing = !!(a && !a.paused);
-    if(data.settings.keepNoduck){
-        if(playing){
-            el.textContent = '静音通道运行中（不抢其他 App 声音）';
-            el.style.color = '#10b981';
-        }else{
-            el.textContent = '静音通道被系统挂起（不换出声通道，这段时间可能收不到消息）';
-            el.style.color = '#F59E0B';
-        }
+    const aliveMs = _bgAliveMs || 0;
+    const frozen = aliveMs > 0 && aliveMs < 30000;   // 实测后台活不过 30 秒 = 保活不生效
+    if(frozen){
+        el.textContent = `保活没生效（实测切后台仅存活 ${Math.round(aliveMs/1000)} 秒，页面被系统冻结）`;
+        el.style.color = '#ef4444';
         return;
     }
     if(playing){
-        el.textContent = a.muted ? '静音通道运行中 ✅' : '出声通道运行中 ✅';
+        el.textContent = data.settings.keepNoduck
+            ? '近静音音频运行中 ✅（18kHz，人耳几乎听不到）'
+            : '保活音频运行中 ✅（18kHz + WebRTC 锚点）';
         el.style.color = '#10b981';
     }else{
-        el.textContent = '已开启，请点击页面唤醒';
+        el.textContent = '保活音频被中断，正在退避重试（请点一下页面）';
         el.style.color = '#F59E0B';
     }
 }
@@ -4538,7 +4610,7 @@ function buildSoundSettingsHtml(){
     /* ===== 后台保活 ===== */
     html += `<div class="sub-group-title">🔔 后台保活</div>`;
     html += `<div class="setting-item"><span class="label">开启后台保活<span style="display:block;font-size:11px;color:var(--text-light);">切后台时循环播放近无声音频防冻结，消息即时到达；回前台自动补跑错过的调度</span></span><div class="value"><div class="toggle-switch ${st.keepAlive?'active':''}" onclick="toggleKeepAlive()"></div></div></div>`;
-    html += `<div class="setting-item"><span class="label">不抢其他 App 的声音<span style="display:block;font-size:11px;color:var(--text-light);">保活音频只走「静音通道」（系统不认为在放声音），不会压低/暂停你在看的视频、在听的歌；静音通道被系统挂起时也不会自动换回出声通道，代价是那段时间后台可能收不到消息</span></span><div class="value"><div class="toggle-switch ${st.keepNoduck?'active':''}" onclick="toggleKeepField('keepNoduck')"></div></div></div>`;
+    html += `<div class="setting-item"><span class="label">不抢其他 App 的声音<span style="display:block;font-size:11px;color:var(--text-light);">开启后保活音频换成 18kHz 极轻信号（手机外放几乎听不见），被别的 App 打断时只按 5s→10s→20s 退避补播，不每 5 秒硬抢；完全静音是不行的，系统会判定"没在播"并把页面冻结</span></span><div class="value"><div class="toggle-switch ${st.keepNoduck?'active':''}" onclick="toggleKeepField('keepNoduck')"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">iPhone 前台省电<span style="display:block;font-size:11px;color:var(--text-light);">你正在用这一页时也不放保活声——iPhone 上它原本从进页起一直跑；手停 15 秒或切到后台会自动接上</span></span><div class="value"><div class="toggle-switch ${st.keepFgquiet?'active':''}" onclick="toggleKeepField('keepFgquiet')"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">保活音频<span style="display:block;font-size:11px;color:var(--text-light);">点击可换成自定义音频（白噪音/助眠声，会按原音量出声）</span></span><div class="value"><button class="btn-outline" onclick="uploadKeepAliveAudio()">${st.keepAudioData?'自定义音频':'默认静音音频'}</button>${st.keepAudioData?'<button class="btn-outline" onclick="clearKeepAliveAudio()" style="color:#ef4444;border-color:#fecaca;">清除</button>':''}</div></div>`;
     html += `<div class="setting-item"><span class="label">保活状态</span><div class="value"><span id="keepAliveState" style="font-size:12px;color:var(--text-light);">—</span></div></div>`;
