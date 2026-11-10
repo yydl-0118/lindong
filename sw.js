@@ -1,19 +1,19 @@
 /* =========================================================
-   临冬 · Service Worker（后台消息推送）
-   - 文件位置：与 HTML 同目录，文件名必须为 sw.js
+   临冬 · Service Worker（后台消息推送 / 版本更新）
+   - 文件位置：与 index.html 同目录，文件名必须为 sw.js
    - 必须通过 HTTPS 或 localhost 访问才能注册成功
-   - 作用：接收页面触发的系统通知，处理通知点击事件
+   - v4：页面导航强制绕过 HTTP 缓存，改完 index.html 立即生效
    ========================================================= */
 
-const CACHE_NAME = 'lingdong-pwa-v3';
+const CACHE_NAME = 'lingdong-pwa-v4';
 
-/* ---------- 安装：立即跳过等待，并缓存基本壳 ---------- */
+/* ---------- 安装：立即跳过等待 ---------- */
 self.addEventListener('install', (event) => {
     self.skipWaiting();
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(['./']).catch(() => {});
-        }).catch(() => {})
+        caches.open(CACHE_NAME)
+            .then((cache) => cache.addAll(['./']))
+            .catch(() => {})
     );
 });
 
@@ -31,11 +31,6 @@ self.addEventListener('activate', (event) => {
 });
 
 /* ---------- 网络请求：网络优先 + 运行时缓存 ---------- */
-/* 说明：
-   - 在线时始终使用网络最新资源，并把成功的 GET 响应放入缓存
-   - 离线时回退到缓存
-   - 跨域请求（如头像、网易云接口等）直接放行，不缓存
-*/
 self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (req.method !== 'GET') return;
@@ -43,11 +38,15 @@ self.addEventListener('fetch', (event) => {
     let url;
     try { url = new URL(req.url); } catch (e) { return; }
 
-    // 只处理同源请求（跨域请求直接走网络，避免干扰外部资源）
+    // 跨域请求直接放行
     if (url.origin !== self.location.origin) return;
 
+    // ⭐ 页面本身（导航）永远拿最新的，绕开浏览器 HTTP 缓存
+    const isNav = req.mode === 'navigate' || req.destination === 'document';
+    const fetchOpts = isNav ? { cache: 'no-store' } : {};
+
     event.respondWith(
-        fetch(req)
+        fetch(req, fetchOpts)
             .then((res) => {
                 if (res && res.status === 200 && res.type === 'basic') {
                     const copy = res.clone();
@@ -60,7 +59,6 @@ self.addEventListener('fetch', (event) => {
             .catch(async () => {
                 const cached = await caches.match(req);
                 if (cached) return cached;
-                // 导航请求离线时回退到首页
                 if (req.mode === 'navigate') {
                     const fallback = await caches.match('./');
                     if (fallback) return fallback;
@@ -71,10 +69,6 @@ self.addEventListener('fetch', (event) => {
 });
 
 /* ---------- 通知点击 ---------- */
-/* 点击系统通知时：
-   1. 如果已有打开的临冬窗口 → 聚焦该窗口，并通过 postMessage 通知页面打开对应聊天
-   2. 如果没有窗口 → 打开新窗口，并通过 URL 参数 openChat=contactId 直达聊天
-*/
 self.addEventListener('notificationclick', (event) => {
     const notification = event.notification;
     const data = notification.data || {};
@@ -88,24 +82,19 @@ self.addEventListener('notificationclick', (event) => {
             includeUncontrolled: true
         });
 
-        // 1. 优先聚焦已打开的窗口
         for (const client of windowClients) {
             if ('focus' in client) {
                 try {
                     await client.focus();
-                    // 通知页面跳转到对应聊天
                     client.postMessage({
                         type: 'notification-click',
                         contactId: contactId
                     });
                     return;
-                } catch (e) {
-                    // 聚焦失败则继续找下一个
-                }
+                } catch (e) {}
             }
         }
 
-        // 2. 没有可用窗口，打开新窗口（带 openChat 参数）
         if (self.clients.openWindow) {
             const baseUrl = new URL('./', self.registration.scope);
             let targetUrl = baseUrl.href;
@@ -120,11 +109,6 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 /* ---------- Web Push（备用） ---------- */
-/* 说明：
-   - 当前临冬主要使用「页面内 reg.showNotification」方式推送
-   - 这里保留 push 事件处理，方便将来接入服务器推送
-   - 若收到服务器推送，会显示通知；点击走上面的 notificationclick
-*/
 self.addEventListener('push', (event) => {
     let payload = {};
     try {
@@ -136,9 +120,9 @@ self.addEventListener('push', (event) => {
     const title = payload.title || '临冬';
     const options = {
         body: payload.body || '你有一条新消息',
-                icon: payload.icon || 'icon.png',
+        icon: payload.icon || 'icon.png',
         badge: 'icon.png',
-tag: payload.tag || ('lingdong-push-' + Date.now()),
+        tag: payload.tag || ('lingdong-push-' + Date.now()),
         data: payload.data || {},
         silent: false,
         requireInteraction: false,
@@ -149,17 +133,15 @@ tag: payload.tag || ('lingdong-push-' + Date.now()),
     event.waitUntil(self.registration.showNotification(title, options));
 });
 
-/* ---------- 页面消息（用于版本更新） ---------- */
+/* ---------- 页面消息 ---------- */
 self.addEventListener('message', (event) => {
     const data = event.data || {};
 
-    // 页面请求立即激活新版本
     if (data.type === 'SKIP_WAITING') {
         self.skipWaiting();
         return;
     }
 
-    // 页面请求显示通知（备用通道）
     if (data.type === 'SHOW_NOTIFICATION' && data.notification) {
         const n = data.notification;
         event.waitUntil(
@@ -178,10 +160,9 @@ self.addEventListener('message', (event) => {
     }
 });
 
-/* ---------- 同步事件（备用，部分安卓浏览器支持） ---------- */
+/* ---------- 同步事件（备用） ---------- */
 self.addEventListener('sync', (event) => {
     if (event.tag === 'lingdong-sync') {
-        // 预留：后台同步逻辑
         event.waitUntil(Promise.resolve());
     }
 });
