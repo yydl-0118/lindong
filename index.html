@@ -440,9 +440,13 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .call-box .call-countdown{font-size:13px;color:#FBBF24;margin-bottom:12px;min-height:18px}
 .call-box .call-timer{font-size:28px;font-weight:300;margin-bottom:24px;font-variant-numeric:tabular-nums}
 .call-box .call-actions{display:flex;justify-content:center;gap:20px}
-.call-box .call-actions button{width:60px;height:60px;border-radius:50%;border:none;font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.call-box .call-actions .btn-end{background:#ef4444;color:#fff}
-.call-box .call-actions .btn-answer{background:#34d399;color:#fff;animation:pulseBtn 1.2s infinite}
+.call-box .call-actions button{width:64px;height:64px;border-radius:50%;border:none;font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.call-box .call-actions{display:flex;justify-content:center;gap:34px;}
+.call-box .call-actions .call-action-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;}
+.call-box .call-actions .call-action-label{font-size:13px;color:#e5e7eb;letter-spacing:1px;}
+.call-box .call-actions .btn-end{background:#ef4444;color:#fff;box-shadow:0 6px 18px rgba(239,68,68,.5);}
+.call-box .call-actions .btn-end svg{transform:rotate(135deg);}
+.call-box .call-actions .btn-answer{background:#22c55e;color:#fff;animation:pulseBtn 1.2s infinite;box-shadow:0 6px 18px rgba(34,197,94,.55);}
 @keyframes pulseBtn{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,.7)}50%{box-shadow:0 0 0 12px rgba(52,211,153,0)}}
 .call-box .call-minimize{position:absolute;top:12px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:18px;padding:4px 8px;border-radius:8px;cursor:pointer}
 #callMini{position:fixed;right:16px;bottom:130px;width:58px;height:58px;border-radius:50%;background:var(--primary);color:#fff;display:none;align-items:center;justify-content:center;font-size:24px;z-index:10001;box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:grab;border:2px solid #fff;touch-action:none}
@@ -904,6 +908,7 @@ body.kb-open #app {
 </div>
 
 <div id="modalContainer"></div>
+<div id="callLayer"></div>
 <div id="toast" class="toast hide"></div>
 <style id="customCssTag"></style>
 <style id="customFontTag"></style>
@@ -5988,18 +5993,25 @@ function updateCallTimerDisplay(){
     const mt = document.getElementById('miniTimer');
     if(mt) mt.textContent = d;
 }
+function getCallLayer(){
+    let el = document.getElementById('callLayer');
+    if(!el){ el = document.createElement('div'); el.id='callLayer'; document.body.appendChild(el); }
+    return el;
+}
 function renderCallBox(){
-    const c=document.getElementById('modalContainer');if(!c)return;
+    const c=getCallLayer(); if(!c) return;
     const contact = (callState && callState.contactId) ? getContact(callState.contactId) : getActiveContact();
-if(!contact) return;
-    const name=contact.name||'对方';const avatar=contact.avatar||'';
+    const name = (contact && contact.name) || (callState && callState.contactName) || '对方';
+    const avatar = (contact && contact.avatar) || '';
     const avatarHtml=avatar?`<img src="${escapeHtml(avatar)}" alt="avatar">`:`<div class="placeholder">${escapeHtml((name||'?')[0].toUpperCase())}</div>`;
     const st=callState;
         let statusText='',countdownText='',timerText=fmtDuration(getCallElapsedSeconds());
     if(st.answered)statusText='通话中';
     else if(st.isOutgoing)statusText='📞 呼叫中...';
     else{statusText='📞 来电...';countdownText=`响铃中 · ${st.ringLeft} 秒后未接自动挂断`;}
-    c.innerHTML=`<div class="call-modal" id="callModal"><div class="call-box"><button class="call-minimize" onclick="minimizeCall()">⏺</button><div class="call-avatar">${avatarHtml}</div><div class="call-name">${escapeHtml(name)}</div><div class="call-status" id="callStatus">${statusText}</div><div class="call-countdown" id="callCountdown">${countdownText}</div><div class="call-timer" id="callTimer">${timerText}</div><div class="call-actions"><button class="btn-end" onclick="endCall('')">📞</button>${(!st.isOutgoing&&!st.answered)?'<button class="btn-answer" onclick="answerCall()">📞</button>':''}</div></div></div>`;
+    const phoneSvg = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+    const canAnswer = (!st.isOutgoing && !st.answered);
+    c.innerHTML=`<div class="call-modal" id="callModal"><div class="call-box"><button class="call-minimize" onclick="minimizeCall()">⏺</button><div class="call-avatar">${avatarHtml}</div><div class="call-name">${escapeHtml(name)}</div><div class="call-status" id="callStatus">${statusText}</div><div class="call-countdown" id="callCountdown">${countdownText}</div><div class="call-timer" id="callTimer">${timerText}</div><div class="call-actions"><div class="call-action-wrap"><button class="btn-end" onclick="endCall('')" title="挂断">${phoneSvg}</button><span class="call-action-label">挂断</span></div>${canAnswer?`<div class="call-action-wrap"><button class="btn-answer" onclick="answerCall()" title="接听">${phoneSvg}</button><span class="call-action-label" style="color:#86efac;">接听</span></div>`:''}</div></div></div>`;
 }
 function resetCallMiniPosition(){const mini=document.getElementById('callMini');if(!mini)return;mini.style.left='';mini.style.top='';mini.style.right='16px';mini.style.bottom='130px';}
 function showCallModal(isOutgoing){
@@ -6008,7 +6020,7 @@ function showCallModal(isOutgoing){
     if(callState&&callState.active){restoreCall();return;}
     callState={active:true,minimized:false,isOutgoing:!!isOutgoing,answered:false,seconds:0,answeredAt:0,
         ringLeft:CALL_RING_TIMEOUT,ringDeadline:Date.now()+CALL_RING_TIMEOUT*1000,
-        ringId:null,timerId:null,timeoutId:null,countdownId:null,contactId:c.id};
+        ringId:null,timerId:null,timeoutId:null,countdownId:null,contactId:c.id,contactName:c.name||''};
     resetCallMiniPosition();renderCallBox();
     const mini=document.getElementById('callMini');if(mini)mini.style.display='none';
     if(!isOutgoing){
@@ -6050,6 +6062,7 @@ function answerCall(){
     }catch(e){}
     callState.timerId=setInterval(updateCallTimerDisplay,1000);
     updateCallTimerDisplay();
+    try{ renderCallBox(); }catch(e){}   // 接听后只留「挂断」，不再出现接听按钮
     showToast('📞 已接通');
 }
 function endCall(reason){
@@ -6077,18 +6090,25 @@ function endCall(reason){
     const toastMsg=reason==='rejected'?'📞 对方拒接':reason==='missed'?'📞 未接听':answered?'📞 通话结束':'';
        try{ localStorage.removeItem('lingdong_call_state'); }catch(e){}
     callState.active=false;callState=null;
-    const c=document.getElementById('modalContainer');if(c)c.innerHTML='';
+    const c=getCallLayer();if(c)c.innerHTML='';
     const mini=document.getElementById('callMini');if(mini)mini.style.display='none';
     if(toastMsg)showToast(toastMsg);
 }
 function minimizeCall(){
     if(!callState)return;
     callState.minimized=true;
-    const c=document.getElementById('modalContainer');if(c)c.innerHTML='';
+    const c=getCallLayer();if(c)c.innerHTML='';
     const mini=document.getElementById('callMini');if(mini)mini.style.display='flex';
     const mt=document.getElementById('miniTimer');if(mt)mt.textContent=fmtDuration(getCallElapsedSeconds());
 }
 function restoreCall(){if(!callState)return;callState.minimized=false;renderCallBox();const mini=document.getElementById('callMini');if(mini)mini.style.display='none';}
+document.addEventListener('visibilitychange', function(){
+    try{
+        if(document.visibilityState==='visible' && callState && callState.active && !callState.minimized && !document.getElementById('callModal')){
+            renderCallBox();
+        }
+    }catch(e){}
+});
 function initCallMiniDrag(){
     const mini=document.getElementById('callMini');if(!mini)return;
     let drag=null;
