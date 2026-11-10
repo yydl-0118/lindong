@@ -257,6 +257,21 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .moments-me .mm-avatar div{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff;background:#4A90D9;}
 .moments-list{flex:1;overflow-y:auto;background:#fff;}
 .moments-empty{padding:60px 20px;text-align:center;color:#999;font-size:14px;}
+.moments-unread{display:none;align-items:center;justify-content:center;gap:6px;background:#3a3a3a;color:#fff;font-size:13px;font-weight:500;padding:9px 16px;border-radius:9px;margin:10px auto 0;width:fit-content;box-shadow:0 3px 12px rgba(0,0,0,.2);cursor:pointer;position:relative;z-index:5;}
+.moments-unread:active{background:#2a2a2a;}
+.notice-row{display:flex;gap:10px;padding:12px 4px;border-bottom:1px solid #f2f2f2;cursor:pointer;align-items:flex-start;}
+.notice-row:active{background:#fafafa;}
+.notice-avatar{width:40px;height:40px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#eee;}
+.notice-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+.notice-avatar div{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;background:#4A90D9;font-size:15px;}
+.notice-main{flex:1;min-width:0;}
+.notice-name{font-size:14px;font-weight:600;color:#576b95;margin-bottom:3px;}
+.notice-body{font-size:13px;color:#333;line-height:1.5;word-break:break-word;}
+.notice-time{font-size:11px;color:#b2b2b2;margin-top:4px;}
+.notice-thumb{width:52px;height:52px;border-radius:5px;object-fit:cover;flex-shrink:0;background:#f4f4f4;}
+.notice-thumb-text{width:52px;height:52px;border-radius:5px;background:#f4f4f4;color:#888;font-size:10px;line-height:1.3;padding:4px;box-sizing:border-box;overflow:hidden;flex-shrink:0;}
+@keyframes momentFlash{0%{background:#fff8d1;}100%{background:transparent;}}
+.moment-flash{animation:momentFlash 1.5s ease;}
 .moment-item{display:flex;gap:10px;padding:16px 14px 14px;border-bottom:1px solid #f0f0f0;}
 .moment-avatar{width:42px;height:42px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#eee;}
 .moment-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
@@ -766,6 +781,7 @@ body.kb-open #app {
                 <div class="mm-avatar" id="momentsMeAvatar"></div>
             </div>
         </div>
+        <div class="moments-unread" id="momentsUnread" onclick="openMomentNotices()"></div>
         <div class="moments-list" id="momentsList"></div>
     </div>
 
@@ -794,7 +810,7 @@ body.kb-open #app {
 
     <div id="bottom-nav">
         <button class="nav-item active" data-page="contacts" onclick="switchPage('contacts')"><span class="nav-icon"><?xml version="1.0" encoding="UTF-8"?><svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M44 6H4V36H13V41L23 36H44V6Z" fill="none" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 19.5V22.5" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 19.5V22.5" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M34 19.5V22.5" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="nav-badge" id="navChatBadge"></span></span><span class="nav-label">聊天</span></button>
-        <button class="nav-item" data-page="moments" onclick="switchPage('moments')"><span class="nav-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="17" stroke="#333" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="8" r="3.5" fill="#333"/><circle cx="40" cy="24" r="3.5" fill="#333"/><circle cx="24" cy="40" r="3.5" fill="#333"/><circle cx="8" cy="24" r="3.5" fill="#333"/></svg></span><span class="nav-label">朋友圈</span></button>
+        <button class="nav-item" data-page="moments" onclick="switchPage('moments')"><span class="nav-icon"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="17" stroke="#333" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="8" r="3.5" fill="#333"/><circle cx="40" cy="24" r="3.5" fill="#333"/><circle cx="24" cy="40" r="3.5" fill="#333"/><circle cx="8" cy="24" r="3.5" fill="#333"/></svg></span><span class="nav-badge" id="navMomentBadge"></span><span class="nav-label">朋友圈</span></button>
         <button class="nav-item" data-page="tools" onclick="switchPage('tools')"><span class="nav-icon"><?xml version="1.0" encoding="UTF-8"?><svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M41.5 10H35.5" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M27.5 6V14" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M27.5 10L5.5 10" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 24H5.5" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21.5 20V28" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M43.5 24H21.5" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M41.5 38H35.5" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M27.5 34V42" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M27.5 38H5.5" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="nav-label">工具</span></button>
         <button class="nav-item" data-page="settings" onclick="switchPage('settings')"><span class="nav-icon"><?xml version="1.0" encoding="UTF-8"?><svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18.2838 43.1713C14.9327 42.1736 11.9498 40.3213 9.58787 37.867C10.469 36.8227 11 35.4734 11 34.0001C11 30.6864 8.31371 28.0001 5 28.0001C4.79955 28.0001 4.60139 28.01 4.40599 28.0292C4.13979 26.7277 4 25.3803 4 24.0001C4 21.9095 4.32077 19.8938 4.91579 17.9995C4.94381 17.9999 4.97188 18.0001 5 18.0001C8.31371 18.0001 11 15.3138 11 12.0001C11 11.0488 10.7786 10.1493 10.3846 9.35011C12.6975 7.1995 15.5205 5.59002 18.6521 4.72314C19.6444 6.66819 21.6667 8.00013 24 8.00013C26.3333 8.00013 28.3556 6.66819 29.3479 4.72314C32.4795 5.59002 35.3025 7.1995 37.6154 9.35011C37.2214 10.1493 37 11.0488 37 12.0001C37 15.3138 39.6863 18.0001 43 18.0001C43.0281 18.0001 43.0562 17.9999 43.0842 17.9995C43.6792 19.8938 44 21.9095 44 24.0001C44 25.3803 43.8602 26.7277 43.594 28.0292C43.3986 28.01 43.2005 28.0001 43 28.0001C39.6863 28.0001 37 30.6864 37 34.0001C37 35.4734 37.531 36.8227 38.4121 37.867C36.0502 40.3213 33.0673 42.1736 29.7162 43.1713C28.9428 40.752 26.676 39.0001 24 39.0001C21.324 39.0001 19.0572 40.752 18.2838 43.1713Z" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/><path d="M24 31C27.866 31 31 27.866 31 24C31 20.134 27.866 17 24 17C20.134 17 17 20.134 17 24C17 27.866 20.134 31 24 31Z" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/></svg></span><span class="nav-label">我</span></button>
     </div>
@@ -962,6 +978,7 @@ function defaultData(){
                       likeMinMinutes:5, likeMaxMinutes:60, dailyMax:3,
                       likeProb:0.6, commentProb:0.35, commentBackProb:0.7},
             posts:[],
+            notifications:[],
             dayKey:'', dayCount:0, dayTarget:0
         }
     };
@@ -1905,6 +1922,9 @@ function initDataFields(){
     if(!data.moments.settings || typeof data.moments.settings !== 'object') data.moments.settings = defaultData().moments.settings;
     data.moments.settings = Object.assign({}, defaultData().moments.settings, data.moments.settings);
     if(!Array.isArray(data.moments.posts)) data.moments.posts = [];
+    if(!Array.isArray(data.moments.notifications)) data.moments.notifications = [];
+    data.moments.notifications = data.moments.notifications.filter(n=>n && typeof n==='object');
+    if(data.moments.notifications.length > 120) data.moments.notifications = data.moments.notifications.slice(-120);
     data.moments.posts = data.moments.posts.filter(p=>p && typeof p==='object');
     data.moments.posts.forEach(p=>{
         if(!Array.isArray(p.blocks)) p.blocks = [];
@@ -3529,6 +3549,7 @@ function renderMoments(){
     const nm = document.getElementById('momentsMeName'); if(nm) nm.textContent = me.name;
     const av = document.getElementById('momentsMeAvatar'); if(av) av.innerHTML = momentAvatarHtml(me);
 
+    updateMomentBadge();
     const posts = (data.moments.posts||[]).slice().sort((a,b)=>(b.time||0)-(a.time||0));
     if(!posts.length){
         list.innerHTML = '<div class="moments-empty">还没有朋友圈<br>点右上角 📷 发一条吧</div>';
@@ -3665,12 +3686,14 @@ function scheduleMomentReactions(postId){
             if(!post) return;
             if(Math.random() < (Number(st.likeProb)||0.6) && !post.likes.some(l=>l.who===c.id)){
                 post.likes.push({who:c.id, name:c.name||'对方'});
+                addMomentNotice({type:'like', postId:postId, who:c.id, name:c.name||'对方', text:''});
             }
             if(Math.random() < (Number(st.commentProb)||0.35)){
                 const mine = (post.comments||[]).filter(x=>x.who==='me').pop();
                 const nc = {id:genId(), who:c.id, name:c.name||'对方', blocks:buildMomentCommentBlocks(c), time:Date.now()};
                 if(mine && Math.random()<0.65) nc.replyTo = {who:'me', name:mine.name||((data.user&&data.user.name)||'我')};
                 post.comments.push(nc);
+                addMomentNotice({type:nc.replyTo?'reply':'comment', postId:postId, who:c.id, name:c.name||'对方', text:momentBlocksSummary(nc.blocks)});
             }
             saveData(); renderMoments();
         }, delay, 'momentReact_'+postId+'_'+idx);
@@ -3722,6 +3745,104 @@ function buildMomentCommentBlocks(contact){
     if(!blocks.length) blocks.push({type:'text', value:pool[Math.floor(Math.random()*pool.length)]});
     return blocks;
 }
+// ===== 朋友圈互动消息 =====
+function momentUnreadCount(){
+    const list = (data.moments && data.moments.notifications) || [];
+    return list.filter(n=>n && !n.read).length;
+}
+function updateMomentBadge(){
+    const n = momentUnreadCount();
+    const navBadge = document.getElementById('navMomentBadge');
+    if(navBadge){
+        navBadge.textContent = n > 99 ? '99+' : String(n);
+        navBadge.classList.toggle('show', n > 0);
+    }
+    const pill = document.getElementById('momentsUnread');
+    if(pill){
+        pill.style.display = n > 0 ? 'flex' : 'none';
+        pill.textContent = n + ' 条新消息';
+    }
+}
+function addMomentNotice(o){
+    if(!o || !o.postId) return;
+    if(!data.moments.notifications) data.moments.notifications = [];
+    const n = Object.assign({id:genId(), time:Date.now(), read:false, who:'', name:'', text:''}, o);
+    data.moments.notifications.push(n);
+    if(data.moments.notifications.length > 120) data.moments.notifications = data.moments.notifications.slice(-120);
+    saveData();
+    updateMomentBadge();
+}
+function momentBlocksSummary(blocks){
+    let t = '';
+    (blocks||[]).forEach(b=>{
+        if(!b || t) return;
+        if(b.type === 'text' || b.type === 'card') t = String(b.value||'');
+    });
+    return t.slice(0, 50);
+}
+function momentPostSummary(p){
+    if(!p) return '';
+    return momentBlocksSummary(p.blocks);
+}
+function momentNoticeThumb(p){
+    if(!p || !Array.isArray(p.blocks)) return '';
+    const img = p.blocks.find(b=>b && (b.type==='image' || b.type==='emoji') && b.value);
+    if(img) return `<img class="notice-thumb" src="${escapeHtml(img.value)}" alt="">`;
+    const t = momentPostSummary(p);
+    if(t) return `<div class="notice-thumb-text">${escapeHtml(t)}</div>`;
+    return '';
+}
+function momentNoticeWho(n){
+    if(n.who === 'me') return { name:(data.user&&data.user.name)||'我', avatar:(data.user&&data.user.avatar)||'' };
+    const c = n.who ? getContact(n.who) : null;
+    return { name:(c&&c.name)||n.name||'对方', avatar:(c&&c.avatar)||n.avatar||'' };
+}
+function momentNoticeAction(n){
+    if(n.type === 'post') return '发布了新朋友圈';
+    if(n.type === 'like') return '赞了你的朋友圈';
+    if(n.type === 'comment') return '评论了你的朋友圈';
+    if(n.type === 'reply') return '回复了你的评论';
+    return '有新互动';
+}
+function momentNoticeRow(n){
+    const who = momentNoticeWho(n);
+    const p = (data.moments.posts||[]).find(x=>x.id===n.postId);
+    const body = n.text ? `：${escapeHtml(n.text)}` : '';
+    return `<div class="notice-row" onclick="jumpToMomentNotice('${n.id}')">
+        <div class="notice-avatar">${momentAvatarHtml(who)}</div>
+        <div class="notice-main">
+            <div class="notice-name">${escapeHtml(who.name)}</div>
+            <div class="notice-body">${momentNoticeAction(n)}${body}</div>
+            <div class="notice-time">${momentRelTime(n.time)}</div>
+        </div>
+        ${momentNoticeThumb(p)}
+    </div>`;
+}
+function openMomentNotices(){
+    const list = (data.moments.notifications||[]).slice().sort((a,b)=>(b.time||0)-(a.time||0));
+    const html = list.length
+        ? list.map(n=>momentNoticeRow(n)).join('')
+        : '<div class="moments-empty">还没有互动消息<br>有人发朋友圈、点赞或评论时会出现在这里</div>';
+    showModal('全部互动消息', `<div style="max-height:66vh;overflow-y:auto;margin:-6px -2px 0;">${html}</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">关闭</button></div>`);
+    // 打开即视为已读
+    list.forEach(n=>{ n.read = true; });
+    saveData(); updateMomentBadge();
+}
+function jumpToMomentNotice(noticeId){
+    const n = (data.moments.notifications||[]).find(x=>x.id===noticeId);
+    if(!n) return;
+    n.read = true; saveData(); updateMomentBadge();
+    closeModal();
+    switchPage('moments');
+    setTimeout(()=>{
+        const el = document.querySelector(`#momentsList [data-mid="${n.postId}"]`);
+        if(!el){ showToast('这条朋友圈已删除'); return; }
+        try{ el.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){ el.scrollIntoView(); }
+        el.classList.add('moment-flash');
+        setTimeout(()=>{ try{ el.classList.remove('moment-flash'); }catch(e){} }, 1600);
+    }, 120);
+}
+
 function toggleMomentLike(postId){
     const post = (data.moments.posts||[]).find(x=>x.id===postId);
     if(!post) return;
@@ -3766,7 +3887,9 @@ function submitMomentComment(postId){
             if(Math.random() > (Number(st.commentBackProb)||0.7)) return;
             const author = momentAuthorInfo(pp);
             const authorContact = getContact(pp.authorId) || {id:pp.authorId, name:author.name, type:'single'};
-            pp.comments.push({id:genId(), who:pp.authorId, name:author.name, replyTo:{who:'me', name:(data.user&&data.user.name)||'我'}, blocks:buildMomentCommentBlocks(authorContact), time:Date.now()});
+            const backBlocks = buildMomentCommentBlocks(authorContact);
+            pp.comments.push({id:genId(), who:pp.authorId, name:author.name, replyTo:{who:'me', name:(data.user&&data.user.name)||'我'}, blocks:backBlocks, time:Date.now()});
+            addMomentNotice({type:'reply', postId:postId, who:pp.authorId, name:author.name, text:momentBlocksSummary(backBlocks)});
             saveData(); renderMoments();
         }, delay, 'momentCommentBack_'+postId);
     }
@@ -3861,14 +3984,14 @@ function generateMomentPost(){
     const count = clamp(randInt(Math.max(1,Math.round(Number(st.minCount)||1)), Math.max(1,Math.round(Number(st.maxCount)||3)),), 1, 10);
     const cards = getCardsForContact(a);
     const blocks = [];
+    const fbPool = ['今天天气真好','有点想你了','刚吃完饭','在忙什么呢','晚安啦','好想出去玩'];
+    const picked = [];
+    const pool = cards.slice().sort(()=>Math.random()-0.5);   // 先打乱，尽量不重复
     for(let i=0;i<count;i++){
-        if(cards.length){
-            blocks.push({type:'card', value:cards[Math.floor(Math.random()*cards.length)]});
-        }else{
-            const fb = ['今天天气真好','有点想你了','刚吃完饭','在忙什么呢','晚安啦','好想出去玩'];
-            blocks.push({type:'text', value:fb[Math.floor(Math.random()*fb.length)]});
-        }
+        if(pool.length) picked.push(pool[i % pool.length]);
+        else picked.push(fbPool[Math.floor(Math.random()*fbPool.length)]);
     }
+    if(picked.length) blocks.push({type:'card', value:picked.join(' ')});   // 多条字卡并成一条，空格隔开
     const rs = data.replySettings || {};
     if(rs.textEmojiEnabled && Array.isArray(data.textEmojis) && data.textEmojis.length && Math.random()<0.45){
         const te = pickTextEmoji();
@@ -3894,6 +4017,7 @@ function generateMomentPost(){
     const post = {id:genId(), isMe:false, authorId:a.id, authorName:a.name||'', authorAvatar:a.avatar||'', time:Date.now(), blocks, likes:[], comments:[]};
     m.posts.unshift(post);
     m.dayCount++;
+    addMomentNotice({type:'post', postId:post.id, who:a.id, name:a.name||'对方', text:momentPostSummary(post)});
     saveData(true);
     renderMoments();
     // 朋友点赞
@@ -3918,6 +4042,7 @@ function scheduleMomentAutoPost(){
 }
 function startMoments(){
     try{ ensureMomentDay(); }catch(e){}
+    try{ updateMomentBadge(); }catch(e){}
     try{ scheduler.cancelByKey('momentAutoPost'); }catch(e){}
     try{ scheduleMomentAutoPost(); }catch(e){}
 }
@@ -5225,7 +5350,7 @@ function renderSettingsPage(){
     html += `<div class="me-menu">`;
     menuItems.forEach(item=>{ html += `<div class="me-menu-item" onclick="openSettingsSub('${item.key}')"><div class="me-menu-icon">${item.icon}</div><div class="me-menu-text"><div class="me-menu-title">${item.title}</div><div class="me-menu-desc">${item.desc}</div></div><div class="me-menu-arrow">›</div></div>`; });
     html += `</div>`;
-    html += `<div style="text-align:center;font-size:12px;color:var(--text-light);padding:24px 16px 32px;line-height:1.9;letter-spacing:.3px;"><div>作者：小红书（6868972505）</div><div>二传分享链接请标注作者署名耀衍的梨和字卡名字临冬</div></div>`;
+    html += `<div style="text-align:center;font-size:12px;color:var(--text-light);padding:24px 16px 32px;line-height:1.9;letter-spacing:.3px;"><div>作者：小红书（6868972505）</div><div>二传分享链接请标注作者署名耀衍的梨和字卡名字临冬</div><div style="margin-top:6px;color:#bbb;">版本：2026.11.10 · 朋友圈版（4 个导航）</div></div>`;
 
     body.innerHTML = html;
     if(currentSettingsSub) renderSettingsSubPage(currentSettingsSub);
