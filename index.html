@@ -213,13 +213,13 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
     letter-spacing: .5px;
 }
 /* ===== 表情 / 图片气泡：贴纸不再透出背景 ===== */
-.msg-bubble.emoji-bubble{background:#fff!important;color:transparent!important;box-shadow:0 2px 8px rgba(0,0,0,.08)!important;border:none!important;padding:4px!important;line-height:0;max-width:200px;position:relative;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;overflow:hidden;}
+.msg-bubble.emoji-bubble:not(.has-reply){background:#fff!important;color:transparent!important;box-shadow:0 2px 8px rgba(0,0,0,.08)!important;border:none!important;padding:4px!important;line-height:0;max-width:200px;position:relative;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;overflow:hidden;}
 .msg-bubble.emoji-bubble .emoji-img{max-width:90px;max-height:100px;border-radius:calc(var(--bubble-radius) - 4px);display:block;background:#fff;}
 .msg-bubble.emoji-bubble.has-reply .emoji-img{background:transparent;box-shadow:none;}
 .msg-bubble.emoji-bubble .emoji-img.img-large{max-width:180px;max-height:200px}
 .msg-bubble.emoji-bubble .time{display:none}
-.msg-bubble.emoji-bubble.has-reply{background:var(--bubble-other)!important;color:var(--bubble-other-text)!important;padding:10px 14px!important;box-shadow:0 1px 2px rgba(0,0,0,.04)!important;line-height:1.5!important;max-width:100%}
-.msg-group.me .msg-bubble.emoji-bubble.has-reply{background:var(--bubble-me)!important;color:var(--bubble-me-text)!important}
+.msg-bubble.emoji-bubble.has-reply{max-width:100%;}
+/* 引用+表情包：气泡底色完全跟随当前气泡主题/自定义CSS */
 .msg-bubble.emoji-bubble.has-reply .time{display:none}
 
 #footer{background:var(--footer-bg);padding:8px 12px calc(8px + var(--safe-bottom));display:flex;flex-direction:column;border-top:1px solid var(--border);flex-shrink:0;position:relative;z-index:10}
@@ -246,7 +246,8 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 /* ===== 朋友圈 ===== */
 #pageMoments{background:#f5f5f5;}
 .moments-cover{position:relative;height:260px;background:linear-gradient(160deg,#4A90D9,#8fb9e8);background-size:cover;background-position:center;flex-shrink:0;}
-.moments-cover::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.25),rgba(0,0,0,0) 45%,rgba(0,0,0,.25));}
+.moments-bg-img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;object-position:center;display:none;z-index:0;}
+.moments-cover::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to bottom,rgba(0,0,0,.25),rgba(0,0,0,0) 45%,rgba(0,0,0,.25));}
 .moments-topbar{position:absolute;top:10px;right:12px;display:flex;gap:8px;z-index:3;}
 .moments-topbar button{width:38px;height:38px;border-radius:10px;border:none;background:rgba(0,0,0,.35);color:#fff;font-size:19px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
 .moments-me{position:absolute;right:16px;bottom:14px;display:flex;align-items:flex-end;gap:10px;z-index:3;}
@@ -755,6 +756,7 @@ body.kb-open #app {
 
     <div class="page" id="pageMoments">
         <div class="moments-cover" id="momentsCover">
+            <img id="momentsBgImg" class="moments-bg-img" alt="">
             <div class="moments-topbar">
                 <button onclick="openMomentCompose()" title="发布朋友圈"><?xml version="1.0" encoding="UTF-8"?><svg width="1em" height="1em" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 12L18 6H30L33 12H15Z" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/><rect x="4" y="12" width="40" height="30" rx="3" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/><path d="M24 35C28.4183 35 32 31.4183 32 27C32 22.5817 28.4183 19 24 19C19.5817 19 16 22.5817 16 27C16 31.4183 19.5817 35 24 35Z" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/></svg></button>
                 <button onclick="openMomentSettings()" title="朋友圈设置"><?xml version="1.0" encoding="UTF-8"?><svg width="1em" height="1em" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M34.0003 41L44 24L34.0003 7H14.0002L4 24L14.0002 41H34.0003Z" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/><path d="M24 29C26.7614 29 29 26.7614 29 24C29 21.2386 26.7614 19 24 19C21.2386 19 19 21.2386 19 24C19 26.7614 21.2386 29 24 29Z" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/></svg></button>
@@ -2655,7 +2657,7 @@ function buildMessageHtml(m,msgs){
                 }
             }
             const refWho = ref.sender === 'me' ? '我' : (ref.senderName || getActiveContact()?.name || '对方');
-            replyHtml = `<span class="reply-ref" onclick="jumpToMessage(event,'${ref.id}')" title="点击跳转到原消息">↩ ${escapeHtml(refWho)}: ${refImg}${refImg?'':' '}${escapeHtml(refText)}</span>`;
+            replyHtml = `<span class="reply-ref" onclick="jumpToMessage(event,'${ref.id}')" title="点击跳转到原消息">↩ ${escapeHtml(refWho)}: ${refImg}${refImg?'':escapeHtml(refText)}</span>`;
         }
     }
     let bubbleClass = 'msg-bubble';
@@ -3513,8 +3515,16 @@ function renderMoments(){
     if(!cover || !list) return;
     if(!data.moments) return;
     const bg = data.moments.bg || '';
-    cover.style.backgroundImage = bg ? `url(${bg})` : '';
-    cover.style.background = bg ? '' : 'linear-gradient(160deg,#4A90D9,#8fb9e8)';
+    const bgImg = document.getElementById('momentsBgImg');
+    if(bgImg){
+        if(bg){ bgImg.src = bg; bgImg.style.display = 'block'; }
+        else { bgImg.removeAttribute('src'); bgImg.style.display = 'none'; }
+    }
+    // 兜底：老 WebView 用 CSS 背景也铺一层
+    try{
+        if(bg){ cover.style.background = `url("${bg}") center / cover no-repeat`; }
+        else { cover.style.background = 'linear-gradient(160deg,#4A90D9,#8fb9e8)'; }
+    }catch(e){}
     const me = { name:(data.user&&data.user.name)||'我', avatar:(data.user&&data.user.avatar)||'' };
     const nm = document.getElementById('momentsMeName'); if(nm) nm.textContent = me.name;
     const av = document.getElementById('momentsMeAvatar'); if(av) av.innerHTML = momentAvatarHtml(me);
@@ -3798,7 +3808,11 @@ function pickMomentBg(){
         setTimeout(()=>{ try{ input.remove(); }catch(x){} },0);
         if(!f) return;
         const url = await compressImageFile(f, 1080, 0.82);
-        if(url){ data.moments.bg = url; saveData(true); renderMoments(); showToast('背景图已更新'); }
+        if(url){
+            data.moments.bg = url;
+            try{ idbSet('moments_bg_solo', url); }catch(e){}
+            saveData(true); renderMoments(); showToast('背景图已更新');
+        }
         openMomentSettings();
     };
     input.click();
@@ -7422,6 +7436,8 @@ async function restoreAssetsFromIDB(){
             emojis.forEach(e=>{ if(e && e.id) map[e.id] = e.dataUrl||''; });
             (data.emojis||[]).forEach(e=>{ if(e && !e.dataUrl && map[e.id]) e.dataUrl = map[e.id]; });
         }
+        const momentBgSolo = await idbGet('moments_bg_solo');
+        if(momentBgSolo && data.moments && !data.moments.bg) data.moments.bg = momentBgSolo;
         const momentAssets = await idbGet('moment_assets');
         if(Array.isArray(momentAssets) && data.moments){
             const map = {};
@@ -7445,6 +7461,7 @@ async function restoreAssetsFromIDB(){
                 data.music.list.forEach(s=>{ if(s && !s.url && map[s.id]) s.url = map[s.id]; });
             }
         }
+        try{ renderMoments(); }catch(e){}
     }catch(e){}
 }
 
