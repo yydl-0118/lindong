@@ -1491,6 +1491,7 @@ function _bindKeepAliveUnlock(){
     };
     document.addEventListener('touchstart', unlock, {once:true, passive:true, capture:true});
     document.addEventListener('click', unlock, {once:true, capture:true});
+    document.addEventListener('click', ()=>{ try{ requestPersistentStorage(false); }catch(e){} }, {once:true, capture:true});
 }
 // 切换「不抢其他 App 的声音」时立刻切通道，不用重启
 function applyKeepAliveAudio(){
@@ -1646,6 +1647,19 @@ let _saveFailWarned = false;
 let _idbFailWarned = false;
 let _saveTimer = null, _idbPromise = null;
 
+/* 申请持久化存储：让浏览器不要把我们的 IndexedDB 当成"可随时清理的缓存" */
+let _persistAsked = false;
+async function requestPersistentStorage(showResult){
+    try{
+        if(!navigator.storage || !navigator.storage.persist) return false;
+        if(await navigator.storage.persisted()){ if(showResult) showToast('存储已持久化 ✅ 不会被系统自动清'); return true; }
+        if(_persistAsked && !showResult) return false;
+        _persistAsked = true;
+        const ok = await navigator.storage.persist();
+        if(showResult) showToast(ok ? '已开启持久化存储 ✅' : '系统未同意持久化，请把网页加到桌面再试');
+        return ok;
+    }catch(e){ return false; }
+}
 function openIDB(){
     if(_idbPromise) return _idbPromise;
     _idbPromise = new Promise(resolve=>{
@@ -1674,7 +1688,7 @@ function idbSet(key,val){
             tx.oncomplete = ()=>done(true);
             tx.onerror = ()=>done(false);
             tx.onabort = ()=>done(false);
-            setTimeout(()=>done(false), 5000);
+            setTimeout(()=>done(false), 15000);
         }catch(e){ done(false); }
     })).catch(()=>false);
 }
@@ -1701,9 +1715,14 @@ function saveNow(){
     try{
         const p = idbSet('data', json);
         if(p && p.then) p.then(ok=>{
-            if(ok === false && !_idbFailWarned){
-                _idbFailWarned = true;
-                showToast('⚠️ 存储空间不足，图片可能没存上，请到「工具→表情」导出备份');
+            if(ok === false){
+                // 慢手机/后台切换会导致写入超时，先重试一次再报错
+                idbSet('data', json).then(ok2=>{
+                    if(ok2 === false && !_idbFailWarned){
+                        _idbFailWarned = true;
+                        showToast('⚠️ 数据保存没成功（存储空间不足或被系统占用），请到「数据管理」导出备份');
+                    }
+                });
             }
         });
     }catch(e){}
@@ -1712,8 +1731,15 @@ function saveNow(){
     try{
         const slim = buildSlimData(data);
         const slimJson = JSON.stringify(slim);
-        localStorage.setItem(STORAGE_KEY, slimJson);
-        try{ localStorage.setItem(BACKUP_KEY, slimJson); }catch(e){}
+        const slimBytes = slimJson.length;
+        // localStorage 只有 5MB（浏览器写死）。超过 3.5MB 就别硬塞了，完整数据在 IndexedDB 里
+        if(slimBytes <= 3.5 * 1024 * 1024){
+            localStorage.setItem(STORAGE_KEY, slimJson);
+            // 备份只在精简版较小（<1.5MB）时写，避免把 5MB 额度double占用
+            if(slimBytes <= 1.5 * 1024 * 1024){
+                try{ localStorage.setItem(BACKUP_KEY, slimJson); }catch(e){}
+            }
+        }
         _saveFailWarned = false;
         return;
     }catch(e){}
@@ -1783,6 +1809,21 @@ function buildSlimData(src){
                         return Object.assign({}, b, {value:''});
                     }
                     return b;
+                });
+            }
+            // ⭐ 评论里的表情包/图片也抽走：否则精简版 localStorage 会被几 MB 图片撑爆
+            if(Array.isArray(np.comments)){
+                np.comments = np.comments.map((cm,ci)=>{
+                    if(!cm || !Array.isArray(cm.blocks)) return cm;
+                    const ncm = Object.assign({}, cm);
+                    ncm.blocks = cm.blocks.map((b,bi)=>{
+                        if(b && b.value && String(b.value).length > 500){
+                            momentAssets.push({type:'moment_comment_block', id:(p.id||'p')+'_c'+ci+'_'+bi, data:b.value});
+                            return Object.assign({}, b, {value:''});
+                        }
+                        return b;
+                    });
+                    return ncm;
                 });
             }
             return np;
@@ -5393,6 +5434,14 @@ async function showStorageDiagnosis(){
         if(c.bgImage) avatarSize += c.bgImage.length;
     });
     if(data.user && data.user.avatar) avatarSize += data.user.avatar.length;
+    let momentTotal = 0, momentMine = 0, momentOthers = 0, momentImgs = 0, momentSize = 0;
+    ((data.moments && data.moments.posts) || []).forEach(p=>{
+        momentTotal++;
+        if(p && p.isMe) momentMine++; else momentOthers++;
+        ((p && p.blocks) || []).forEach(b=>{
+            if(b && b.value){ momentSize += String(b.value).length; if(b.type==='image'||b.type==='emoji') momentImgs++; }
+        });
+    });
     (data.emojis||[]).forEach(e=>{ if(e.dataUrl) emojiSize += e.dataUrl.length; });
     ((data.music&&data.music.list)||[]).forEach(s=>{ if(s.url) musicSize += s.url.length; });
 
@@ -5405,12 +5454,30 @@ async function showStorageDiagnosis(){
         if(raw) idbSize = raw.length;
     }catch(e){}
 
+    // 浏览器真实额度（IndexedDB 才是大容量）
+    let quotaText = '未知', usedText = '未知', persisted = false;
+    try{
+        if(navigator.storage && navigator.storage.estimate){
+            const est = await navigator.storage.estimate();
+            const q = est.quota || 0, u = est.usage || 0;
+            quotaText = q > 1024*1024*1024 ? (q/1024/1024/1024).toFixed(2)+' GB' : (q/1024/1024).toFixed(1)+' MB';
+            usedText  = u > 1024*1024*1024 ? (u/1024/1024/1024).toFixed(2)+' GB' : (u/1024/1024).toFixed(1)+' MB';
+        }
+        if(navigator.storage && navigator.storage.persisted) persisted = await navigator.storage.persisted();
+    }catch(e){}
+
     showModal('📊 存储占用明细', `
         <div class="setting-sub" style="line-height:2;font-size:13px;">
             <div>💬 聊天消息：<b>${fmt(msgSize)}</b>（${totalMsgs} 条，含 ${imgCount} 张图片）</div>
             <div>😊 表情包：<b>${fmt(emojiSize)}</b>（${(data.emojis||[]).length} 个）</div>
             <div>🎵 音乐：<b>${fmt(musicSize)}</b>（${((data.music&&data.music.list)||[]).length} 首）</div>
             <div>👤 头像/背景：<b>${fmt(avatarSize)}</b></div>
+            <div>📸 朋友圈：<b>${fmt(momentSize)}</b>（${momentTotal} 条：联系人 ${momentOthers} 条 / 我 ${momentMine} 条，含 ${momentImgs} 张图）</div>
+            <div style="font-size:11px;color:#999;word-break:break-all;">🌐 当前地址：${escapeHtml(location.origin + location.pathname)}</div>
+            <div style="font-size:11px;color:#999;">（数据按地址隔离：换文件名或换链接=换了一个存储，原来的记录不会跟过来）</div>
+            <div>💾 浏览器可用总额度：<b>${quotaText}</b>（已用 ${usedText}）</div>
+            <div style="font-size:11px;color:${persisted?'#10b981':'#f59e0b'};">${persisted ? '✅ 存储已持久化，不会被系统自动清理' : '⚠️ 存储未持久化：空间紧张时可能被系统清理'}</div>
+            <div style="padding:0 0 4px;"><button class="btn-outline" style="width:100%;justify-content:center;" onclick="requestPersistentStorage(true)">申请持久化存储（保住数据）</button></div>
             <hr style="margin:8px 0;">
             <div>📦 IndexedDB 占用：<b>${fmt(idbSize)}</b>（完整数据）</div>
             <div style="color:#10b981;margin-top:6px;">✅ 聊天记录存储无上限，可放心使用</div>
@@ -7530,7 +7597,8 @@ async function restoreFromIDB(force){
        const useIDB = force || (!localParsed) || (idbParsed && idbTime >= localTime);
 
         if(useIDB && idbParsed && typeof idbParsed==='object' && !Array.isArray(idbParsed)){
-            const hasData = (idbParsed.contacts && idbParsed.contacts.length) ||
+            const hasData = (idbParsed.moments && Array.isArray(idbParsed.moments.posts) && idbParsed.moments.posts.length) ||
+                            (idbParsed.contacts && idbParsed.contacts.length) ||
                             (idbParsed.emojis && idbParsed.emojis.length) ||
                             (idbParsed.wordCards && idbParsed.wordCards.groups && idbParsed.wordCards.groups.length) ||
                             (idbParsed.music && idbParsed.music.list && idbParsed.music.list.length) ||
@@ -7588,13 +7656,26 @@ async function restoreAssetsFromIDB(){
             momentAssets.forEach(a=>{ if(a && a.id) map[a.type+':'+a.id] = a.data||''; });
             if(!data.moments.bg && map['moment_bg:bg']) data.moments.bg = map['moment_bg:bg'];
             (data.moments.posts||[]).forEach(p=>{
-                if(!p || !Array.isArray(p.blocks)) return;
-                p.blocks.forEach((b,i)=>{
-                    if(b && !b.value){
-                        const k = 'moment_block:'+(p.id||'p')+'_'+i;
-                        if(map[k]) b.value = map[k];
-                    }
-                });
+                if(!p) return;
+                if(Array.isArray(p.blocks)){
+                    p.blocks.forEach((b,i)=>{
+                        if(b && !b.value){
+                            const k = 'moment_block:'+(p.id||'p')+'_'+i;
+                            if(map[k]) b.value = map[k];
+                        }
+                    });
+                }
+                if(Array.isArray(p.comments)){
+                    p.comments.forEach((cm,ci)=>{
+                        if(!cm || !Array.isArray(cm.blocks)) return;
+                        cm.blocks.forEach((b,bi)=>{
+                            if(b && !b.value){
+                                const k = 'moment_comment_block:'+(p.id||'p')+'_c'+ci+'_'+bi;
+                                if(map[k]) b.value = map[k];
+                            }
+                        });
+                    });
+                }
             });
         }
         const musicUrls = await idbGet('music_urls');
