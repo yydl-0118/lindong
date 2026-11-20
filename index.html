@@ -110,7 +110,8 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .msg-group.me{align-self:flex-end;flex-direction:row-reverse}
 .msg-group.other{align-self:flex-start}
 .msg-side{display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;min-width:38px;}
-.msg-side-time{font-size:10px;color:var(--text-light);opacity:.8;white-space:nowrap;line-height:1;font-variant-numeric:tabular-nums;}
+.msg-sender-name{font-size:11px;color:var(--text-light);margin:0 2px 3px 4px;line-height:1.2;text-align:left;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.msg-side-time{font-size:11px;color:var(--text-light);opacity:.92;white-space:nowrap;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:.2px;}
 .msg-avatar{width:38px;height:38px;border-radius:var(--avatar-radius);overflow:hidden;flex-shrink:0;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08)}
 .msg-avatar img{width:100%;height:100%;object-fit:cover}
 .msg-body{display:flex;flex-direction:column;min-width:0;max-width:100%}
@@ -166,10 +167,17 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .msg-actions-bar button:active{background:rgba(0,0,0,.08);}
 .msg-time-divider{text-align:center;font-size:11px;color:var(--text-light);padding:6px 0 2px;opacity:.7}
 .msg-time-divider span{background:rgba(0,0,0,.06);padding:2px 10px;border-radius:10px}
+.chat-load-more{text-align:center;padding:6px 0 10px;}
+.chat-load-more span{display:inline-block;font-size:11px;color:var(--text-light);background:rgba(0,0,0,.05);padding:3px 12px;border-radius:12px;line-height:1.4;}
 .msg-system-center{text-align:center;padding:2px 0;width:100%;align-self:center;animation:msgIn .22s ease}
 .msg-system-center span{display:inline-block;font-size:12px;color:var(--text-light);background:rgba(0,0,0,.05);padding:5px 14px;border-radius:12px;max-width:82%;word-break:break-word;line-height:1.5;transition:background .25s,color .25s;}
 .msg-system-center span b{font-weight:600;color:var(--text)}
 .msg-system-center .sys-icon{font-size:13px;margin-right:3px}
+.unblock-req-box{display:inline-block;min-width:220px;max-width:88%;background:linear-gradient(135deg,#fff7ed,#fef2f2);border:1px solid #fed7aa;border-radius:14px;padding:10px 12px;box-shadow:0 4px 14px rgba(249,115,22,.12);}
+.unblock-req-text{font-size:12.5px;color:#9a3412;line-height:1.5;text-align:left;word-break:break-word;}
+.unblock-req-actions{display:flex;gap:8px;margin-top:9px;}
+.unblock-req-actions button{flex:1;border:none;border-radius:9px;padding:7px 8px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,#f97316,#fb923c);color:#fff;white-space:nowrap;}
+.unblock-req-actions button.ghost{background:#fff;color:#9a3412;border:1px solid #fdba74;}
 @keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
 .msg-bubble.recall-bubble {cursor: pointer;user-select: none;}
@@ -315,8 +323,17 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .moment-comments{background:#f7f7f7;border-radius:6px;padding:8px 10px;margin-top:6px;font-size:13px;line-height:1.7;}
 .moment-comments .mc-who{color:#576b95;font-weight:600;}
 .moment-comments .mc-me{color:#222;}
-.moment-comments .moment-comment-row{cursor:pointer;padding:2px 4px;margin:0 -4px;border-radius:4px;}
+.moment-comments .moment-comment-row{cursor:pointer;padding:2px 4px;margin:0 -4px;border-radius:4px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
 .moment-comments .moment-comment-row:active{background:#ececec;}
+.mc-menu-overlay{position:fixed;inset:0;z-index:10020;background:rgba(0,0,0,.28);display:flex;align-items:flex-end;justify-content:center;animation:mcFade .16s ease;}
+.mc-menu{width:100%;max-width:420px;background:#fff;border-radius:18px 18px 0 0;padding:8px 10px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.18);animation:mcUp .2s ease;}
+.mc-menu-title{font-size:12px;color:#9ca3af;padding:10px 14px;border-bottom:1px solid #f1f2f4;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mc-menu-item{display:block;width:100%;border:none;background:transparent;text-align:center;padding:14px 10px;font-size:16px;color:#1a1a2e;font-family:inherit;border-radius:10px;cursor:pointer;}
+.mc-menu-item:active{background:#f4f5f7;}
+.mc-menu-item.danger{color:#ef4444;}
+.mc-menu-item.cancel{color:#6b7280;font-size:15px;border-top:1px solid #f1f2f4;border-radius:0 0 10px 10px;}
+@keyframes mcFade{from{opacity:0}to{opacity:1}}
+@keyframes mcUp{from{transform:translateY(14px);opacity:.6}to{transform:translateY(0);opacity:1}}
 
 #bottom-nav{display:flex;background:var(--footer-bg);border-top:1px solid var(--border);flex-shrink:0;padding:4px 0 calc(4px + var(--safe-bottom));justify-content:space-around;align-items:center;position:relative;z-index:10}
 #bottom-nav .nav-item{display:flex;flex-direction:column;align-items:center;gap:1px;background:none;border:none;font-size:10px;color:#9ca3af;padding:4px 14px;cursor:pointer;transition:.2s;position:relative;min-width:56px}
@@ -392,6 +409,10 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .setting-item .value input[type=color]{width:40px;height:40px;padding:2px;border-radius:50%;border:1px solid var(--border);background:var(--bg);cursor:pointer}
 .setting-item .value input[type=range]{width:120px;accent-color:var(--primary)}
 .setting-item .value .edit-trigger{font-size:14px;color:var(--primary);cursor:pointer}
+.toggle-switch{position:relative;width:44px;height:24px;background:var(--border);border-radius:12px;cursor:pointer;transition:.2s;flex-shrink:0}
+.toggle-switch.active{background:var(--primary)}
+.toggle-switch::after{content:'';position:absolute;width:20px;height:20px;background:#fff;border-radius:50%;top:2px;left:2px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle-switch.active::after{left:22px}
 .setting-item .value .toggle-switch{position:relative;width:44px;height:24px;background:var(--border);border-radius:12px;cursor:pointer;transition:.2s;flex-shrink:0;z-index:1}
 .setting-item .value .toggle-switch.active{background:var(--primary)}
 .setting-item .value .toggle-switch::after{content:'';position:absolute;width:20px;height:20px;background:#fff;border-radius:50%;top:2px;left:2px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
@@ -476,6 +497,32 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 .call-box .call-minimize{position:absolute;top:12px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:18px;padding:4px 8px;border-radius:8px;cursor:pointer}
 #callMini{position:fixed;right:16px;bottom:130px;width:58px;height:58px;border-radius:50%;background:var(--primary);color:#fff;display:none;align-items:center;justify-content:center;font-size:24px;z-index:10001;box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:grab;border:2px solid #fff;touch-action:none}
 #callMini .mini-timer{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--text-light);background:rgba(255,255,255,.95);padding:1px 6px;border-radius:8px;white-space:nowrap;font-weight:600;pointer-events:none}
+/* ===== 群聊通话 ===== */
+.call-box.group-call-box{width:332px;max-width:94vw;padding:26px 16px 22px;}
+.group-call-box .call-timer{font-size:24px;margin-bottom:12px;}
+.group-call-box .gc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 8px;margin:8px 0 16px;max-height:250px;overflow-y:auto;padding:2px;}
+.group-call-box .gc-tile{text-align:center;}
+.group-call-box .gc-avatar{width:48px;height:48px;border-radius:50%;overflow:hidden;margin:0 auto 5px;border:2px solid rgba(255,255,255,.18);background:#2b2b45;position:relative;}
+.group-call-box .gc-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+.group-call-box .gc-letter{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:#fff;background:var(--primary);}
+.group-call-box .gc-tile.joined .gc-avatar{border-color:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.25);}
+.group-call-box .gc-tile.invited .gc-avatar{opacity:.75;border-style:dashed;}
+.group-call-box .gc-tile.declined .gc-avatar,.group-call-box .gc-tile.left .gc-avatar{opacity:.45;filter:grayscale(.5);}
+.group-call-box .gc-name{font-size:11px;color:#e5e7eb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.group-call-box .gc-status{font-size:9.5px;margin-top:2px;color:#9ca3af;}
+.group-call-box .gc-status.joined{color:#86efac;}
+.group-call-box .gc-status.invited{color:#fbbf24;}
+.group-call-box .gc-status.declined,.group-call-box .gc-status.left{color:#9ca3af;}
+.group-call-box .gc-tip{font-size:11px;color:#6b7280;margin-top:10px;}
+/* ===== 音乐悬浮窗（迷你播放器） ===== */
+#musicMini{position:fixed;left:12px;bottom:150px;display:none;align-items:center;gap:2px;padding:6px 8px;border-radius:16px;background:rgba(26,26,46,.92);color:#fff;z-index:10002;box-shadow:0 8px 24px rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);cursor:grab;touch-action:none;max-width:270px;}
+#musicMini.dragging{cursor:grabbing;opacity:.92;}
+#musicMini .mm-btn{width:34px;height:34px;border-radius:50%;border:none;background:rgba(255,255,255,.12);color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;padding:0;line-height:1;}
+#musicMini .mm-btn:active{background:rgba(255,255,255,.24);}
+#musicMini .mm-btn.mm-play{background:var(--primary);font-size:16px;width:36px;height:36px;}
+#musicMini .mm-info{min-width:0;padding:0 6px 0 4px;cursor:pointer;}
+#musicMini .mm-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:112px;line-height:1.3;}
+#musicMini .mm-artist{font-size:10px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:112px;line-height:1.3;}
 
 .toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;padding:8px 20px;border-radius:20px;font-size:14px;z-index:99999;pointer-events:none;animation:fadeIn .3s ease;backdrop-filter:blur(4px);max-width:80%}
 .toast.hide{opacity:0;transition:.3s}
@@ -640,18 +687,27 @@ html,body{height:100%;width:100%;overflow:hidden;font-family:-apple-system,Blink
 
 .music-row{display:flex;gap:10px;margin-bottom:10px}
 .music-action-btn{flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:15px 6px;font-size:14px;font-weight:500;color:var(--text);cursor:pointer;box-shadow:var(--shadow);font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px}
-.music-player{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);padding:20px 16px;margin:16px 0 8px;box-shadow:var(--shadow);text-align:center}
-.music-cover{width:92px;height:92px;border-radius:50%;margin:0 auto 12px;background:linear-gradient(135deg,#8B5CF6,#EC4899);display:flex;align-items:center;justify-content:center;font-size:36px;color:#fff;box-shadow:0 6px 20px rgba(139,92,246,.35)}
+.music-panel-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:10px;box-shadow:var(--shadow)}
+.music-toggle-title{font-size:14px;font-weight:600;line-height:1.3}
+.music-toggle-desc{font-size:11px;color:var(--text-light);margin-top:2px;line-height:1.4}
+.music-player{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);padding:13px 12px;margin:12px auto 8px;box-shadow:var(--shadow);text-align:center;max-width:340px}
+.music-cover{width:64px;height:64px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#8B5CF6,#EC4899);display:flex;align-items:center;justify-content:center;font-size:25px;color:#fff;box-shadow:0 4px 14px rgba(139,92,246,.3)}
 .music-cover.spinning{animation:musicSpin 8s linear infinite}
 @keyframes musicSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-.music-title{font-size:15px;font-weight:600;margin-bottom:4px;word-break:break-all;line-height:1.4}
-.music-artist{font-size:12px;color:var(--text-light);margin-bottom:14px;word-break:break-all}
-.music-progress{height:6px;background:var(--border);border-radius:3px;overflow:hidden;cursor:pointer}
+.music-title{font-size:13px;font-weight:600;margin-bottom:2px;word-break:break-all;line-height:1.4}
+.music-artist{font-size:11px;color:var(--text-light);margin-bottom:8px;word-break:break-all}
+.music-progress{height:5px;background:var(--border);border-radius:3px;overflow:hidden;cursor:pointer}
 .music-progress-bar{height:100%;background:linear-gradient(90deg,#8B5CF6,#EC4899);width:0;transition:width .15s linear}
 .music-time{display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);margin-top:5px;font-variant-numeric:tabular-nums}
 .music-list-title{font-size:13px;font-weight:600;color:var(--text-light);margin:18px 4px 8px}
 .music-list{display:flex;flex-direction:column;gap:6px}
 .music-item{display:flex;align-items:center;gap:10px;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:11px 12px;cursor:pointer;transition:.15s}
+.music-manage-row{display:flex;align-items:center;gap:8px;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:7px 10px}
+.music-manage-row.checked{border-color:var(--primary);background:rgba(74,144,217,.06)}
+.music-manage-row .mm-check{width:20px;height:20px;border:2px solid var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;background:#fff;cursor:pointer;color:#fff;font-size:13px;font-weight:700;flex-shrink:0}
+.music-manage-row .mm-info{flex:1;min-width:0;font-size:13px;line-height:1.4;word-break:break-all;cursor:pointer}
+.music-manage-row .mm-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);flex-shrink:0;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+.music-manage-row .mm-btn.mm-del{color:#ef4444;border-color:#fecaca}
 .music-item.active{border-color:var(--primary);background:rgba(74,144,217,.06)}
 .music-item-idx{width:22px;text-align:center;font-size:12px;color:var(--text-light);flex-shrink:0}
 .music-item-name{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -883,6 +939,12 @@ body.kb-open #app {
 </div>
 
 <div id="callMini">📞<span class="mini-timer" id="miniTimer">00:00</span></div>
+<div id="musicMini">
+    <button class="mm-btn" id="mmPrev" onclick="event.stopPropagation();musicPrev()" title="上一首">⏮</button>
+    <button class="mm-btn mm-play" id="mmPlay" onclick="event.stopPropagation();toggleMusicPlay()" title="播放/暂停">▶</button>
+    <button class="mm-btn" id="mmNext" onclick="event.stopPropagation();musicNext()" title="下一首">⏭</button>
+    <div class="mm-info" id="mmInfo" title="打开音乐页"><div class="mm-name" id="mmName">未播放</div><div class="mm-artist" id="mmArtist"></div></div>
+</div>
 
 <div id="addFriendModal" class="modal-overlay" style="display:none;z-index:10003;">
     <div class="modal-box">
@@ -963,7 +1025,7 @@ function defaultData(){
         wordCards:{groups:[]},
         clockCards:{place:[],action:[]},
         textEmojis:[],
-        music:{list:[],inviteEnabled:false,inviteProbability:0.3,skipPauseProbability:0.2,currentIndex:-1,volume:MUSIC_DEFAULT_VOLUME,loopMode:'list',playing:false,controlAllowed:false},
+        music:{list:[],inviteEnabled:false,inviteProbability:0.3,skipPauseProbability:0.2,currentIndex:-1,volume:MUSIC_DEFAULT_VOLUME,loopMode:'list',playing:false,controlAllowed:false,floatingEnabled:false},
         letters:{list:[],settings:{cardMin:1,cardMax:3,partnerAutoEnabled:false,dailyLimitMode:'random',dailyLimitValue:3,dailyWriteCount:0,dailyResetDate:'',autoProbability:0.3,writeMinMinutes:5,writeMaxMinutes:30,replyProbability:0.5,replyMaxMinutes:60}},
         replySettings:{
             minSeconds:3,maxSeconds:30,randomStatus:true,
@@ -971,7 +1033,9 @@ function defaultData(){
             emojiReplyProbability:0.25,callProbability:0.03,quoteProbability:0.35,
             cardReplyMinCount:1,cardReplyMaxCount:5,autoMsgMinCount:1,autoMsgMaxCount:3,
             textEmojiEnabled:false,textEmojiWithCard:true,textEmojiProbability:0.2,
-            seenNoReplyEnabled:false,recallEnabled:false,recallProbability:0.15,
+            seenNoReplyEnabled:false,seenNoReplyProbability:0.15,
+            hangupProbability:0.12,unblockRequestProbability:0.2,
+            recallEnabled:false,recallProbability:0.15,
             spellEnabled:false,spellMinCount:2,spellMaxCount:3,
             decisionDelay:3,
             decisionPickCount:1
@@ -1023,6 +1087,7 @@ let replyTimers = {};
 let statusTimer = null;
 let contactStatusTimers = {};
 let callState = null;
+let groupCallState = null;
 let divinationOpen = false;
 let musicPanelOpen = false;
 let letterPanelOpen = false;
@@ -1039,6 +1104,8 @@ let wordCardSearch = '';
 let wordCardScope = 'shared';
 let wordCardOwnerId = null;
 let clockScope = 'shared';
+let _clockBatchMode = false;
+let _clockBatchSelected = new Set();
 let pendingMusicInvite = null;
 let musicAudio = null;
 let pauseGuardToken = 0;
@@ -1068,6 +1135,8 @@ let typingContacts = new Set();
 let currentSettingsSub = null;
 let _notifPermissionRequested = false;
 let _msgRenderStart = null;
+let _msgWindowSize = 200;          // 当前渲染的最近消息条数（上滑自动增加）
+let _msgWindowLoading = false;
 let _chatAutoScrollUntil = 0;     // 自动滚底窗口截止时间
 let _chatScrollGuardBound = false;
 let _suppressAutoScrollOnce = false;
@@ -1750,7 +1819,7 @@ function saveNow(){
         });
     }catch(e){}
 
-    // 兜底存储：localStorage 只写精简版（每联系人最多 200 条 + 大字段抽到 IDB）
+    // 兜底存储：localStorage 只写精简版（每联系人最多 1500 条 + 大字段抽到 IDB）
     try{
         const slim = buildSlimData(data);
         const slimJson = JSON.stringify(slim);
@@ -1865,7 +1934,7 @@ function buildSlimData(src){
             if(nc.avatar){ contactAssets.push({type:'contact_avatar', id:c.id, data:nc.avatar}); nc.avatar=''; }
             if(nc.bgImage){ contactAssets.push({type:'contact_bg', id:c.id, data:nc.bgImage}); nc.bgImage=''; }
             if(Array.isArray(nc.messages)){
-                if(nc.messages.length > 200) nc.messages = nc.messages.slice(-200);
+                if(nc.messages.length > 1500) nc.messages = nc.messages.slice(-1500);
                 nc.messages = nc.messages.map(m=>{
                     if(!m) return m;
                     if((m.type==='image'||m.type==='emoji') && m.content && String(m.content).length>500){
@@ -1971,6 +2040,13 @@ function initDataFields(){
             if(!c.groupAuto || typeof c.groupAuto !== 'object'){
                 c.groupAuto = {enabled:false, minMinutes:5, maxMinutes:30, minCount:1, maxCount:3};
             }
+            if(!c.groupCall || typeof c.groupCall !== 'object'){
+                c.groupCall = {joinProbability:0.7, hangupProbability:0.2, incomingProbability:0.1};
+            }
+            if(typeof c.groupCall.joinProbability !== 'number' || isNaN(c.groupCall.joinProbability)) c.groupCall.joinProbability = 0.7;
+            if(typeof c.groupCall.hangupProbability !== 'number' || isNaN(c.groupCall.hangupProbability)) c.groupCall.hangupProbability = 0.2;
+            if(typeof c.groupCall.incomingProbability !== 'number' || isNaN(c.groupCall.incomingProbability)) c.groupCall.incomingProbability = 0.1;
+            if(typeof c.showMemberNickname !== 'boolean') c.showMemberNickname = true;
         }
     });
     if(!data.wordCards || !Array.isArray(data.wordCards.groups)) data.wordCards = {groups:[]};
@@ -2009,7 +2085,15 @@ function initDataFields(){
     if(typeof data.moments.dayTarget !== 'number') data.moments.dayTarget = 0;
     if(!Array.isArray(data.customStatuses) || !data.customStatuses.length) data.customStatuses = ['在线','忙碌','离线','隐身'];
     if(!data.replySettings) data.replySettings = defaultData().replySettings;
+    const _rsDefault = defaultData().replySettings;
+    Object.keys(_rsDefault).forEach(k=>{ if(!(k in data.replySettings)) data.replySettings[k] = _rsDefault[k]; });
+    ['seenNoReplyProbability','hangupProbability','unblockRequestProbability'].forEach(k=>{
+        const v = Number(data.replySettings[k]);
+        if(isNaN(v) || v < 0 || v > 1) data.replySettings[k] = _rsDefault[k];
+    });
     if(!data.settings) data.settings = defaultData().settings;
+    if(!data.music) data.music = defaultData().music;
+    if(typeof data.music.floatingEnabled !== 'boolean') data.music.floatingEnabled = false;
     if(!data.theme) data.theme = defaultData().theme;
     if(typeof data.theme.homeBg !== 'string') data.theme.homeBg = '';
     if(typeof data.theme.homeCardOpacity !== 'number' || isNaN(data.theme.homeCardOpacity)) data.theme.homeCardOpacity = 0.72;
@@ -2035,6 +2119,7 @@ function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'
 function escAttr(s){return escapeHtml(s).replace(/"/g,'&quot;');}
 function formatTime(ts){const d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
 function formatDateTime(ts){const d=new Date(ts);return (d.getMonth()+1)+'/'+d.getDate()+' '+formatTime(ts);}
+function formatMsgTime(ts){if(!ts) return '';return isToday(ts) ? formatTime(ts) : formatDateTime(ts);}
 function formatDate(ts){const d=new Date(ts);return String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}
 function isToday(ts){const d=new Date(ts),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();}
 function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
@@ -2644,6 +2729,7 @@ function openChat(id){
     if(c.unread){ c.unread = 0; }
     currentReplyTarget = null;
     _msgRenderStart = null;
+    _msgWindowSize = 200;
     saveData(true);
     updateNavBadge();
     closePlusMenu();
@@ -2670,7 +2756,7 @@ function renderHeader(){
         placeholder.textContent = (c.name||'?')[0].toUpperCase();
     }
     const callBtn = document.getElementById('chatCallBtn');
-    if(callBtn) callBtn.style.display = isGroup(c) ? 'none' : '';
+    if(callBtn){ callBtn.style.display = ''; callBtn.title = isGroup(c) ? '发起群聊通话' : '打电话'; }
 }
 
 // ======================================================================
@@ -2733,6 +2819,7 @@ function buildMessageHtml(m,msgs){
     if(m.type === 'call') return `<div class="msg-system-center" data-id="${m.id}"><span><span class="sys-icon">📞</span>${escapeHtml(m.content)}</span></div>`;
     if(m.type === 'readno') return `<div class="msg-system-center" data-id="${m.id}"><span><span class="sys-icon">👀</span>${escapeHtml(m.content)}</span></div>`;
     if(m.type === 'block') return `<div class="msg-system-center" data-id="${m.id}"><span><span class="sys-icon">🚫</span>${escapeHtml(m.content)}</span></div>`;
+    if(m.type === 'unblock_req') return `<div class="msg-system-center unblock-req" data-id="${m.id}"><div class="unblock-req-box"><div class="unblock-req-text">${escapeHtml(m.content)}</div><div class="unblock-req-actions"><button onclick="acceptUnblockRequest('${m.senderId||''}')">解除拉黑</button><button class="ghost" onclick="dismissUnblockRequest('${m.id}')">忽略</button></div></div></div>`;
         if(m.type === 'decision') {
         const d = m.decisionData || {};
         const question = d.question || '';
@@ -2740,7 +2827,7 @@ function buildMessageHtml(m,msgs){
         const picked = d.picked || [];
         const isMe = m.sender === 'me';
         const groupClass = isMe ? 'me' : 'other';
-        const timeStr = formatTime(m.timestamp);
+        const timeStr = formatMsgTime(m.timestamp);
         const showAvatar = data.settings && data.settings.showAvatar !== false;
         
         let optionsHtml = '';
@@ -2768,7 +2855,7 @@ function buildMessageHtml(m,msgs){
         if(hasRecalled){
             const isMe = m.sender === 'me';
             const groupClass = isMe ? 'me' : 'other';
-            const timeStr = formatTime(m.timestamp);
+            const timeStr = formatMsgTime(m.timestamp);
             const showAvatar = data.settings && data.settings.showAvatar !== false;
             const avatarHtml = showAvatar ? `<div class="msg-avatar">${avatarHtmlFor(m.sender, m.senderId, m.senderName)}</div>` : '';
             const sideHtml = `<div class="msg-side">${avatarHtml}<span class="msg-side-time">${timeStr}</span></div>`;
@@ -2786,7 +2873,7 @@ function buildMessageHtml(m,msgs){
     }
       const isMe = m.sender === 'me';
     const groupClass = isMe ? 'me' : 'other';
-    const timeStr = formatTime(m.timestamp);
+    const timeStr = formatMsgTime(m.timestamp);
     const showAvatar = data.settings && data.settings.showAvatar !== false;
     let contentHtml = '', replyHtml = '', hasReply = false;
          /* ===== 引用消息：可点击跳转到被引用的原消息 ===== */
@@ -2823,6 +2910,11 @@ function buildMessageHtml(m,msgs){
     const autoBadge = (m.isAuto && !isMe) ? '<span class="auto-badge">❤️</span>' : '';
     const avatarHtml = showAvatar ? `<div class="msg-avatar">${avatarHtmlFor(m.sender, m.senderId, m.senderName)}</div>` : '';
     const sideHtml = `<div class="msg-side">${avatarHtml}<span class="msg-side-time">${timeStr}</span></div>`;
+    let senderNameHtml = '';
+    const _ac = getActiveContact();
+    if(!isMe && _ac && isGroup(_ac) && _ac.showMemberNickname !== false && m.sender === 'partner' && m.senderName){
+        senderNameHtml = `<div class="msg-sender-name">${escapeHtml(m.senderName)}</div>`;
+    }
     const canRecall = isMe && (m.type==='text' || m.type==='emoji' || m.type==='image');
     let actionsHtml = `<div class="msg-actions-bar" data-actions-for="${m.id}">`;
     if(canRecall){
@@ -2831,7 +2923,7 @@ function buildMessageHtml(m,msgs){
     actionsHtml += `<button onclick="event.stopPropagation();replyToMessage('${m.id}')">💬 引用</button>`;
     actionsHtml += `<button onclick="event.stopPropagation();deleteMessage('${m.id}')">🗑 删除</button></div>`;
 
-    return `<div class="msg-group ${groupClass}" data-id="${m.id}">${sideHtml}<div class="msg-body">${actionsHtml}<div class="${bubbleClass}" onclick="toggleMsgActions(event,'${m.id}')">${autoBadge}${contentHtml}</div></div></div>`;
+    return `<div class="msg-group ${groupClass}" data-id="${m.id}">${sideHtml}<div class="msg-body">${actionsHtml}${senderNameHtml}<div class="${bubbleClass}" onclick="toggleMsgActions(event,'${m.id}')">${autoBadge}${contentHtml}</div></div></div>`;
 }
     /* ===== 点击引用 → 跳转到被引用的消息 ===== */
 function toggleMsgActions(e,id){
@@ -2845,37 +2937,41 @@ function toggleMsgActions(e,id){
 function jumpToMessage(e, refId){
     if(e){ e.stopPropagation(); e.preventDefault(); }
     _chatAutoScrollUntil = 0;
-    const c = getActiveContact(); if(!c) return;
+    const c = getActiveContact(); if(!c) return false;
     const msgs = c.messages || [];
     const idx = msgs.findIndex(m=>m.id===refId);
-    if(idx < 0){ showToast('引用的消息已不存在'); return; }
+    if(idx < 0){ showToast('引用的消息已不存在'); return false; }
 
     let el = document.querySelector(`#message-area [data-id="${refId}"]`);
     if(!el){
-        // 目标消息不在当前渲染窗口内 → 重新渲染包含它的片段
-        _msgRenderStart = Math.max(0, idx - 15);
-        renderMessagesNow();
+        // 目标消息不在当前渲染窗口内 → 扩大窗口，确保目标一定被渲染出来
+        _msgWindowSize = Math.min(msgs.length, Math.max(_msgWindowSize, (msgs.length - idx) + 60));
         _msgRenderStart = null;
+        renderMessagesNow({keepScroll:true});
         el = document.querySelector(`#message-area [data-id="${refId}"]`);
     }
-    if(!el){ showToast('找不到该消息'); return; }
+    if(!el){ showToast('找不到该消息'); return false; }
 
-    const area = document.getElementById('message-area');
-    if(area){
-        requestAnimationFrame(()=>{
-            // 用 offsetTop 计算绝对位置，比 getBoundingClientRect 更稳（不受动画/键盘影响）
-            const targetTop = Math.max(0, el.offsetTop - area.clientHeight / 2 + el.offsetHeight / 2);
-            const distance = Math.abs(area.scrollTop - targetTop);
-            if(area.scrollTo) area.scrollTo({ top: targetTop, behavior: distance > 1200 ? 'auto' : 'smooth' });
-            else area.scrollTop = targetTop;
-        });
-    }
+    const scrollToTarget = ()=>{
+        const area = document.getElementById('message-area');
+        const target = document.querySelector(`#message-area [data-id="${refId}"]`);
+        if(!area || !target) return;
+        // 用 offsetTop 计算绝对位置，比 getBoundingClientRect 更稳（不受动画/键盘影响）
+        const targetTop = Math.max(0, target.offsetTop - area.clientHeight / 2 + target.offsetHeight / 2);
+        try{ area.scrollTop = targetTop; }catch(e){}
+    };
+    scrollToTarget();
+    requestAnimationFrame(scrollToTarget);
+    setTimeout(scrollToTarget, 80);
+    setTimeout(scrollToTarget, 220);
+
     // 更明显的定位反馈：气泡描边闪烁 + 气泡角标 + 顶部位置提示条
     const m = msgs[idx] || {};
     const who = m.sender === 'me' ? ((data.user && data.user.name) || '我') : (m.senderName || c.name || '对方');
     showLocateBanner(`已定位到 ${who} · ${formatDateTime(m.timestamp)} 的消息（第 ${idx + 1} 条）`);
-    el.classList.add('msg-highlight');
-    setTimeout(()=>el.classList.remove('msg-highlight'), 2700);
+    const hl = ()=>{ const t = document.querySelector(`#message-area [data-id="${refId}"]`); if(t){ t.classList.add('msg-highlight'); setTimeout(()=>{ try{ t.classList.remove('msg-highlight'); }catch(e){} }, 2700); } };
+    hl(); setTimeout(hl, 120);
+    return true;
 }
 let _locateBannerTimer = null;
 function showLocateBanner(text){
@@ -2945,7 +3041,8 @@ function toggleRecallMessage(el, msgId){
         el.dataset.expanded = 'true';
     }
 }
-function renderMessagesNow(){
+function renderMessagesNow(opts){
+    const keepScroll = !!(opts && opts.keepScroll);
     const area = document.getElementById('message-area');
     const c = getActiveContact();
     if(!c){ area.style.backgroundImage = 'none'; area.innerHTML = ''; area.dataset.lastMsgId = ''; applyChatBubbleVars(null); return; }
@@ -2960,7 +3057,7 @@ function renderMessagesNow(){
         if(typingContacts.has(c.id)) showTypingIndicator(c.id);
         return;
     }
-    let startIdx = Math.max(0, msgs.length - 150);
+    let startIdx = Math.max(0, msgs.length - _msgWindowSize);
     const isJumpRender = (_msgRenderStart != null && _msgRenderStart >= 0 && _msgRenderStart < msgs.length);
     if(isJumpRender){
         startIdx = _msgRenderStart;
@@ -2968,14 +3065,20 @@ function renderMessagesNow(){
     _msgRenderStart = null;
     const suppressAutoScroll = _suppressAutoScrollOnce;
     _suppressAutoScrollOnce = false;
-    let html = '', lastDate = '';
+    let html = '', lastDate = '', lastTs = 0;
     for(let i=startIdx;i<msgs.length;i++){
         const m = msgs[i]; if(!m || !m.timestamp) continue;
         const dateStr = formatDate(m.timestamp);
         if(dateStr !== lastDate){ html += `<div class="msg-time-divider"><span>${isToday(m.timestamp)?'今天':dateStr}</span></div>`; lastDate = dateStr; }
+        else if(lastTs && (m.timestamp - lastTs > 5*60*1000)){ html += `<div class="msg-time-divider"><span>${formatMsgTime(m.timestamp)}</span></div>`; }
+        lastTs = m.timestamp;
         html += buildMessageHtml(m, msgs);
     }
+    if(startIdx > 0){
+        html = `<div class="chat-load-more" id="chatLoadMore"><span>↑ 上滑加载更早的聊天记录（已显示 ${msgs.length - startIdx} / ${msgs.length} 条）</span></div>` + html;
+    }
     area.innerHTML = html;
+    area.dataset.renderStart = String(startIdx);
     // 记录当前渲染窗口的最后一条消息 id，供增量追加校验
     area.dataset.lastMsgId = (()=>{
         for(let i=msgs.length-1;i>=0;i--){ if(msgs[i] && msgs[i].timestamp) return msgs[i].id; }
@@ -2984,7 +3087,7 @@ function renderMessagesNow(){
     if(typingContacts.has(c.id)) showTypingIndicator(c.id);
 
     ensureChatScrollGuard(area);
-    if(isJumpRender || suppressAutoScroll){
+    if(isJumpRender || suppressAutoScroll || keepScroll){
         _chatAutoScrollUntil = 0;
     }else{
         scrollChatToBottomSmooth(area);
@@ -3025,6 +3128,25 @@ function bindChatImagesAutoScroll(area){
         img.addEventListener('error', onDone, {once:true});
     });
 }
+/* === 上滑加载更早的聊天记录（不再只显示最近 150 条） === */
+function maybeLoadOlderMessages(){
+    if(_msgWindowLoading) return;
+    const area = document.getElementById('message-area');
+    if(!area || !isChatPageVisible()) return;
+    if(area.scrollTop > 34) return;
+    const c = getActiveContact(); if(!c) return;
+    const total = (c.messages || []).length;
+    if(_msgWindowSize >= total) return;
+    _msgWindowLoading = true;
+    const prevH = area.scrollHeight, prevTop = area.scrollTop;
+    _msgWindowSize = Math.min(total, _msgWindowSize + 120);
+    renderMessagesNow({keepScroll:true});
+    requestAnimationFrame(()=>{
+        const a2 = document.getElementById('message-area');
+        if(a2){ try{ a2.scrollTop = a2.scrollHeight - prevH + prevTop; }catch(e){} }
+        _msgWindowLoading = false;
+    });
+}
 /* 用户一旦手动操作聊天区域，立即取消自动滚底（避免和上滑看历史打架） */
 function ensureChatScrollGuard(area){
     if(!area) return;
@@ -3034,6 +3156,10 @@ function ensureChatScrollGuard(area){
         area.addEventListener('touchstart', cancel, {passive:true});
         area.addEventListener('wheel', cancel, {passive:true});
         area.addEventListener('mousedown', cancel, {passive:true});
+    }
+    if(!area._ldOlderBound){
+        area._ldOlderBound = true;
+        area.addEventListener('scroll', ()=>{ if(area.scrollTop < 34) maybeLoadOlderMessages(); }, {passive:true});
     }
     if(!area._ldScrollObserver && typeof ResizeObserver !== 'undefined'){
         try{
@@ -3084,7 +3210,7 @@ function addMessage(sender,content,type,replyTo,silent,isAuto,senderName,contact
     }
 
     const msgType = type || 'text';
-    if(sender === 'partner' && c.blocked) return null;
+    if(sender === 'partner' && c.blocked && msgType !== 'unblock_req') return null;
 
     if(sender === 'partner' && isGroup(c) && (msgType === 'text' || msgType === 'emoji' || msgType === 'image')){
         let targetMember = null;
@@ -3290,10 +3416,13 @@ function schedulePartnerReply(){
 }
 function pickQuoteTarget(contactId){
     const c = contactId ? getContact(contactId) : getActiveContact(); if(!c) return null;
-    const myTextMsgs = (c.messages||[]).filter(m=>m.sender==='me'&&m.type==='text');
-    if(!myTextMsgs.length) return null;
-    const recent = myTextMsgs.slice(-15);
-    return recent[Math.floor(Math.random()*recent.length)].id;
+    // ⭐ 只引用「我最近发出的一条消息」：对方回信一定接在我最后那句话下面
+    const msgs = c.messages || [];
+    for(let i=msgs.length-1; i>=0; i--){
+        const m = msgs[i];
+        if(m && m.sender === 'me' && (m.type==='text' || m.type==='emoji' || m.type==='image')) return m.id;
+    }
+    return null;
 }
 function pickTextEmoji(){
     const list = Array.isArray(data.textEmojis) ? data.textEmojis : [];
@@ -3371,7 +3500,7 @@ function generatePartnerReply(contactId){
         : [c];
     if(!senders.length) return;
     const pickSender = ()=>{ return senders[Math.floor(Math.random()*senders.length)]; };
-    if(s.seenNoReplyEnabled && Math.random() < 0.15){
+    if(s.seenNoReplyEnabled && Math.random() < (Number(s.seenNoReplyProbability)||0)){
         const ps = pickSender();
         addMessage('partner', (ps.name || '对方') + ' 已读不回', 'readno', null, true, false, ps.name || '', contactId, ps.id || '');
         afterPartnerReply(contactId); return;
@@ -3493,7 +3622,7 @@ function generatePartnerReply(contactId){
 }
   function afterPartnerReply(contactId){
     maybePat(contactId);
-    maybeCall();
+    maybeCall(contactId);
     maybeMusicInteraction();
     maybePartnerWriteLetter();
 }
@@ -3521,11 +3650,27 @@ function maybePat(contactId){
         addMessage('partner', senderName + ' ' + content, 'pat', null, false, false, senderName, contactId, senderId);
     }
 }
-function maybeCall(){
-    const ac = getActiveContact(); if(ac && ac.blocked) return;
+function maybeCall(contactId){
+    const active = getActiveContact();
+    const src = (contactId ? getContact(contactId) : null) || active;
+    if(src && src.blocked) return;
+    // 群聊：由群里的某位成员主动打来「群聊电话」（其他成员只能通话中随机加入）
+    if(src && isGroup(src)){
+        const gc = src.groupCall || {};
+        const gp = Number(gc.incomingProbability);
+        if(isNaN(gp)) return;
+        if(Math.random() < gp){
+            const gid = src.id;
+            setTimeout(()=>{ if(!callState && !(groupCallState && groupCallState.active)) startIncomingGroupCall(gid); }, 1500+Math.random()*2500);
+        }
+        return;
+    }
+    // 一对一主动来电只在当前聊天里触发，避免在别的会话回消息时弹错人
+    if(contactId && active && src.id !== active.id) return;
+    const ac = active; if(ac && ac.blocked) return;
     const prob = Number(data.replySettings.callProbability);
     if(isNaN(prob)) return;
-    if(Math.random() < prob) setTimeout(()=>{ if(!callState) showCallModal(false); }, 1500+Math.random()*2500);
+    if(Math.random() < prob) setTimeout(()=>{ if(!callState && !(groupCallState && groupCallState.active)) showCallModal(false); }, 1500+Math.random()*2500);
 }
 
 // ======================================================================
@@ -3729,7 +3874,7 @@ function renderMoments(){
         }
         if(comments.length){
             extra += `<div class="moment-comments">${comments.map(c=>{
-                const click = `onclick="event.stopPropagation();openMomentComment('${p.id}','${c.id}')"`;
+                const click = `onclick="momentCommentRowClick(event,'${p.id}','${c.id}')" onpointerdown="momentCommentPressStart(event,'${p.id}','${c.id}')" onpointermove="momentCommentPressMove(event)" onpointerup="momentCommentPressEnd()" onpointercancel="momentCommentPressEnd()" onpointerleave="momentCommentPressEnd()"`;
                 const who = (c.replyTo && c.replyTo.name)
                     ? `<span class="mc-who">${escapeHtml(c.name||'对方')}</span> 回复 <span class="mc-who">${escapeHtml(c.replyTo.name)}</span>：`
                     : `<span class="mc-who">${escapeHtml(c.name||'对方')}</span>：`;
@@ -4066,6 +4211,70 @@ function toggleMomentLike(postId){
     saveData(true); renderMoments();
 }
 let _momentReplyTarget = null;
+/* ===== 朋友圈评论：单点回复，长按出现「回复 / 删除」 ===== */
+let _mcPressTimer = null, _mcPressMoved = false, _mcSuppressUntil = 0;
+function momentCommentPressStart(e, postId, commentId){
+    _mcPressMoved = false;
+    const el = e.currentTarget;
+    if(el) el._mcStart = {x:e.clientX, y:e.clientY};
+    if(_mcPressTimer){ clearTimeout(_mcPressTimer); _mcPressTimer = null; }
+    _mcPressTimer = setTimeout(()=>{
+        _mcPressTimer = null;
+        if(_mcPressMoved) return;
+        _mcSuppressUntil = Date.now() + 1000;
+        try{ if(navigator.vibrate) navigator.vibrate(30); }catch(err){}
+        showMomentCommentMenu(postId, commentId);
+    }, 500);
+}
+function momentCommentPressMove(e){
+    const el = e.currentTarget;
+    if(!el || !el._mcStart) return;
+    if(Math.abs(e.clientX - el._mcStart.x) > 10 || Math.abs(e.clientY - el._mcStart.y) > 10){
+        _mcPressMoved = true;
+        if(_mcPressTimer){ clearTimeout(_mcPressTimer); _mcPressTimer = null; }
+    }
+}
+function momentCommentPressEnd(){
+    if(_mcPressTimer){ clearTimeout(_mcPressTimer); _mcPressTimer = null; }
+    _mcPressMoved = false;
+}
+function momentCommentRowClick(e, postId, commentId){
+    if(e) e.stopPropagation();
+    if(Date.now() < _mcSuppressUntil) return;
+    openMomentComment(postId, commentId);
+}
+function closeMomentCommentMenu(){
+    const el = document.getElementById('momentCommentMenu');
+    if(el) el.remove();
+}
+function showMomentCommentMenu(postId, commentId){
+    const post = (data.moments.posts||[]).find(x=>x.id===postId);
+    if(!post) return;
+    const cm = (post.comments||[]).find(x=>x.id===commentId);
+    if(!cm) return;
+    closeMomentCommentMenu();
+    const overlay = document.createElement('div');
+    overlay.id = 'momentCommentMenu';
+    overlay.className = 'mc-menu-overlay';
+    overlay.innerHTML = `<div class="mc-menu">
+        <div class="mc-menu-title">${escapeHtml(cm.name||'对方')}：${escapeHtml((cm.text||'').slice(0,28) || '图片评论')}</div>
+        <button class="mc-menu-item" onclick="closeMomentCommentMenu();openMomentComment('${postId}','${commentId}')">💬 回复</button>
+        <button class="mc-menu-item danger" onclick="closeMomentCommentMenu();deleteMomentComment('${postId}','${commentId}')">🗑 删除</button>
+        <button class="mc-menu-item cancel" onclick="closeMomentCommentMenu()">取消</button>
+    </div>`;
+    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeMomentCommentMenu(); });
+    document.body.appendChild(overlay);
+}
+function deleteMomentComment(postId, commentId){
+    const post = (data.moments.posts||[]).find(x=>x.id===postId);
+    if(!post) return;
+    const cm = (post.comments||[]).find(x=>x.id===commentId);
+    if(!cm) return;
+    if(!confirm(`删除这条评论吗？`)) return;
+    post.comments = (post.comments||[]).filter(x=>x.id !== commentId);
+    saveData(true); renderMoments();
+    showToast('评论已删除');
+}
 function openMomentComment(postId, commentId){
     const post = (data.moments.posts||[]).find(x=>x.id===postId);
     if(!post) return;
@@ -4284,14 +4493,21 @@ function renderChatInfo(){
         memberHtml = `<div class="setting-item" style="flex-direction:column;align-items:stretch;"><span class="label">群成员（${(c.members||[]).length}）</span><div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;">${items||'<span style="font-size:12px;color:var(--text-light);">暂无成员</span>'}</div><div class="setting-sub">点击成员头像管理管理员 / 禁言 / 移除群聊；点击「+」邀请新成员</div></div>`;
     }
     let groupAutoHtml = '';
+    let groupCallHtml = '';
     if(group){
         const ga = c.groupAuto || {enabled:false, minMinutes:5, maxMinutes:30, minCount:1, maxCount:3};
-        groupAutoHtml = `<div class="sub-group-title">💬 群成员主动发消息</div><div class="setting-item"><span class="label">主动发消息开关</span><div class="value"><div class="toggle-switch ${ga.enabled?'active':''}" onclick="toggleGroupAuto()"></div></div></div><div class="setting-item"><span class="label">最少发信息时间</span><div class="value"><input type="number" value="${ga.minMinutes}" min="0.1" max="1440" step="0.5" onchange="updateGroupAutoField('minMinutes', this.value)" style="width:70px;"><span style="font-size:12px;">分钟</span></div></div><div class="setting-item"><span class="label">最多发信息时间</span><div class="value"><input type="number" value="${ga.maxMinutes}" min="0.1" max="1440" step="0.5" onchange="updateGroupAutoField('maxMinutes', this.value)" style="width:70px;"><span style="font-size:12px;">分钟</span></div></div><div class="setting-item"><span class="label">发信息条数</span><div class="value"><input type="number" value="${ga.minCount}" min="1" max="20" step="1" onchange="updateGroupAutoField('minCount', this.value)" style="width:55px;"><span style="font-size:12px;">~</span><input type="number" value="${ga.maxCount}" min="1" max="20" step="1" onchange="updateGroupAutoField('maxCount', this.value)" style="width:55px;"><span style="font-size:12px;">条</span></div></div><div class="setting-sub">群聊的主动发消息与「我」中的主动发消息相互独立</div>`;
+        const showMemberNickname = c.showMemberNickname !== false;
+        groupAutoHtml = `<div class="sub-group-title">💬 群成员主动发消息</div><div class="setting-item"><span class="label">显示成员昵称<span style="display:block;font-size:11px;color:var(--text-light);">开启后群消息气泡上方会显示发送人昵称</span></span><div class="value"><div class="toggle-switch ${showMemberNickname?'active':''}" onclick="toggleGroupMemberNickname()"></div></div></div><div class="setting-item"><span class="label">主动发消息开关</span><div class="value"><div class="toggle-switch ${ga.enabled?'active':''}" onclick="toggleGroupAuto()"></div></div></div><div class="setting-item"><span class="label">最少发信息时间</span><div class="value"><input type="number" value="${ga.minMinutes}" min="0.1" max="1440" step="0.5" onchange="updateGroupAutoField('minMinutes', this.value)" style="width:70px;"><span style="font-size:12px;">分钟</span></div></div><div class="setting-item"><span class="label">最多发信息时间</span><div class="value"><input type="number" value="${ga.maxMinutes}" min="0.1" max="1440" step="0.5" onchange="updateGroupAutoField('maxMinutes', this.value)" style="width:70px;"><span style="font-size:12px;">分钟</span></div></div><div class="setting-item"><span class="label">发信息条数</span><div class="value"><input type="number" value="${ga.minCount}" min="1" max="20" step="1" onchange="updateGroupAutoField('minCount', this.value)" style="width:55px;"><span style="font-size:12px;">~</span><input type="number" value="${ga.maxCount}" min="1" max="20" step="1" onchange="updateGroupAutoField('maxCount', this.value)" style="width:55px;"><span style="font-size:12px;">条</span></div></div><div class="setting-sub">群聊的主动发消息与「我」中的主动发消息相互独立</div>`;
+        const gc = c.groupCall || {joinProbability:0.7, hangupProbability:0.2};
+        const joinPct = Math.round((Number(gc.joinProbability)||0)*100);
+        const ghPct = Math.round((Number(gc.hangupProbability)||0)*100);
+        const incPct = Math.round((Number(gc.incomingProbability)||0)*100);
+        groupCallHtml = `<div class="sub-group-title">📞 群聊电话</div><div class="setting-item"><span class="label">成员加入概率<span style="display:block;font-size:11px;color:var(--text-light);">发起后每位被邀请成员各自判定，1.5~8 秒内随机加入；挂断后也会按该概率尝试重新加入（最多 3 次）</span></span><div class="value"><input type="number" value="${joinPct}" min="0" max="100" step="1" onchange="updateGroupCallField('joinProbability', this.value)" style="width:60px;"><span style="font-size:12px;">%</span></div></div><div class="setting-item"><span class="label">成员中途挂断概率<span style="display:block;font-size:11px;color:var(--text-light);">通话中每 30 秒判定一次，触发后该成员挂断</span></span><div class="value"><input type="number" value="${ghPct}" min="0" max="100" step="1" onchange="updateGroupCallField('hangupProbability', this.value)" style="width:60px;"><span style="font-size:12px;">%</span></div></div><div class="setting-item"><span class="label">主动打来群聊电话概率<span style="display:block;font-size:11px;color:var(--text-light);">群聊里有人回消息后判定：命中时由其中一位成员给你打群聊电话，接听后其他成员在通话中随机加入（他们只会打给你）</span></span><div class="value"><input type="number" value="${incPct}" min="0" max="100" step="1" onchange="updateGroupCallField('incomingProbability', this.value)" style="width:60px;"><span style="font-size:12px;">%</span></div></div><div class="setting-sub">点击群聊右上角的电话按钮，可自选要邀请的成员发起群聊通话；成员会陆续加入，也可能中途挂断。对方打来时也是同样的来电界面，谁打来就显示谁的头像和名字</div>`;
     }
           const myAvatarItem = group ? '' : `<div class="setting-item" style="cursor:pointer;" onclick="changeMyChatAvatar()"><span class="label">我方头像${c.myAvatar?'':'（跟随全局）'}</span><div class="value"><div style="width:52px;height:52px;border-radius:12px;overflow:hidden;background:var(--border);flex-shrink:0;">${myAvInner}</div>${c.myAvatar?'<button class="btn-outline" onclick="event.stopPropagation();resetMyChatAvatar()">恢复全局</button>':''}<span class="edit-trigger">修改 ›</span></div></div>`;
     const bubbleItem = group ? '' : `<div class="setting-item" style="cursor:pointer;" onclick="openBubbleSettings()"><span class="label">气泡设置</span><div class="value"><span style="font-size:12px;color:var(--text-light);">${c.bubbleSettings?'已自定义':'跟随全局'}</span><span class="edit-trigger">设置 ›</span></div></div>`;
 
-    body.innerHTML = `<div class="setting-section"><div class="sub-group-title">${group?'👥 群聊信息':'👤 联系人信息'}</div><div class="setting-item" style="cursor:pointer;" onclick="changeContactAvatar()"><span class="label">${group?'群聊头像':'人物头像'}</span><div class="value"><div style="width:52px;height:52px;border-radius:12px;overflow:hidden;background:var(--border);flex-shrink:0;">${avatarInner}</div><span class="edit-trigger">修改 ›</span></div></div><div class="setting-item" style="cursor:pointer;" onclick="editContactName()"><span class="label">${group?'群聊名称':'联系人名字'}</span><div class="value"><span style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.name)}</span><span class="edit-trigger">修改 ›</span></div></div>${myAvatarItem}${memberHtml}${groupAutoHtml}<div class="setting-item"><span class="label">聊天背景图</span><div class="value"><div class="bg-preview" style="width:52px;height:52px;${bgStyle}"></div><button class="btn-outline" onclick="uploadContactBg()">上传</button><button class="btn-outline" onclick="removeContactBg()">清除</button></div></div>${bubbleItem}<div class="setting-item"><span class="label">拉黑${group?'群聊':'联系人'}</span><div class="value"><button class="${c.blocked?'btn-danger':'btn-outline'}" onclick="toggleBlockContact()">${c.blocked?'解除拉黑':'拉黑'}</button></div></div><div style="margin-top:20px;display:flex;flex-direction:column;gap:10px;">
+    body.innerHTML = `<div class="setting-section"><div class="sub-group-title">${group?'👥 群聊信息':'👤 联系人信息'}</div><div class="setting-item" style="cursor:pointer;" onclick="changeContactAvatar()"><span class="label">${group?'群聊头像':'人物头像'}</span><div class="value"><div style="width:52px;height:52px;border-radius:12px;overflow:hidden;background:var(--border);flex-shrink:0;">${avatarInner}</div><span class="edit-trigger">修改 ›</span></div></div><div class="setting-item" style="cursor:pointer;" onclick="editContactName()"><span class="label">${group?'群聊名称':'联系人名字'}</span><div class="value"><span style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.name)}</span><span class="edit-trigger">修改 ›</span></div></div>${myAvatarItem}${memberHtml}${groupAutoHtml}${groupCallHtml}<div class="setting-item"><span class="label">聊天背景图</span><div class="value"><div class="bg-preview" style="width:52px;height:52px;${bgStyle}"></div><button class="btn-outline" onclick="uploadContactBg()">上传</button><button class="btn-outline" onclick="removeContactBg()">清除</button></div></div>${bubbleItem}<div class="setting-item"><span class="label">拉黑${group?'群聊':'联系人'}</span><div class="value"><button class="${c.blocked?'btn-danger':'btn-outline'}" onclick="toggleBlockContact()">${c.blocked?'解除拉黑':'拉黑'}</button></div></div><div style="margin-top:20px;display:flex;flex-direction:column;gap:10px;">
     <button class="btn-outline" style="width:100%;padding:13px;font-size:15px;border-radius:var(--radius-sm);" onclick="openChatSearch()">🔍 查找聊天记录</button>
     <button class="btn-outline" style="width:100%;padding:13px;font-size:15px;border-radius:var(--radius-sm);color:#ef4444;border-color:#fecaca;" onclick="clearCurrentChatMessages()">🧹 清空聊天记录</button>
         <button class="btn-danger" style="width:100%;padding:13px;font-size:15px;border-radius:var(--radius-sm);" onclick="deleteActiveContact()">删除${group?'群聊':'联系人'}</button>
@@ -4320,6 +4536,26 @@ function updateGroupAutoField(key, val){
     c.groupAuto[key] = n;
     saveData(true);
     if(c.groupAuto.enabled) scheduleGroupAuto(c.id);
+}
+function toggleGroupMemberNickname(){
+    const c = getActiveContact();
+    if(!c || !isGroup(c)) return;
+    c.showMemberNickname = !(c.showMemberNickname !== false);
+    saveData(true);
+    renderChatInfo();
+    if(data.activeContactId === c.id) renderMessagesNow();
+    showToast(c.showMemberNickname ? '已显示群成员昵称' : '已隐藏群成员昵称');
+}
+function updateGroupCallField(key, val){
+    const c = getActiveContact();
+    if(!c || !isGroup(c)) return;
+    if(!c.groupCall) c.groupCall = {joinProbability:0.7, hangupProbability:0.2};
+    let n = parseFloat(val);
+    if(isNaN(n)) return;
+    n = Math.min(100, Math.max(0, n));
+    c.groupCall[key] = n/100;
+    saveData(true);
+    showToast('已更新群聊通话概率');
 }
 function scheduleGroupAuto(contactId){
     scheduler.cancelByKey('groupAuto_'+contactId);
@@ -4664,6 +4900,8 @@ function tryAppendMessageToUI(msg, contact){
         const dateStr = formatDate(msg.timestamp);
         if(!prevMsg || formatDate(prevMsg.timestamp) !== dateStr){
             html += `<div class="msg-time-divider"><span>${isToday(msg.timestamp)?'今天':dateStr}</span></div>`;
+        }else if(msg.timestamp - prevMsg.timestamp > 5*60*1000){
+            html += `<div class="msg-time-divider"><span>${formatMsgTime(msg.timestamp)}</span></div>`;
         }
         html += buildMessageHtml(msg, msgs);
 
@@ -4707,11 +4945,14 @@ function toggleBlockContact(){
     if(!c.blocked){
         if(!confirm(`确定拉黑「${c.name}」吗？拉黑后对方将无法主动发消息和回复。`)) return;
         c.blocked = true;
+        c.lastUnblockReqAt = 0;
         scheduler.cancelByKey('partnerReply_'+c.id);
         scheduler.cancelByKey('autoMsg_'+c.id);
         scheduler.cancelByKey('groupAuto_'+c.id);
         typingContacts.delete(c.id);
         addMessage('me', `你已将「${c.name}」拉黑`, 'sys', null, true, false, '', c.id);
+        // 拉黑 1 分钟后立即参与第一次「请求解除拉黑」判定
+        setTimeout(()=>{ try{ scheduleUnblockRequestTick(); }catch(e){} }, 60000);
     } else {
         c.blocked = false;
         if(data.replySettings.autoMsgEnabled && !isGroup(c)) scheduleAutoMessageFor(c.id);
@@ -4724,6 +4965,42 @@ function toggleBlockContact(){
 function notifyBlockedOnSend(c){
     if(!c || !c.blocked) return;
     addMessage('me', '你已将对方拉黑，对方不能发送消息', 'block', null, true, false, '', c.id);
+}
+/* ===== 被拉黑方请求解除拉黑 ===== */
+function scheduleUnblockRequestTick(){
+    const prob = Number(data.replySettings.unblockRequestProbability)||0;
+    if(prob <= 0) return;
+    (data.contacts||[]).forEach(c=>{
+        if(!c || isGroup(c) || !c.blocked) return;
+        const last = Number(c.lastUnblockReqAt)||0;
+        if(Date.now() - last < 30*60*1000) return;
+        if(Math.random() >= prob) return;
+        c.lastUnblockReqAt = Date.now();
+        addMessage('partner', `「${c.name||'对方'}」请求你解除拉黑`, 'unblock_req', null, false, false, c.name||'对方', c.id, c.id);
+    });
+    saveData();
+}
+function acceptUnblockRequest(contactId){
+    const c = contactId ? getContact(contactId) : getActiveContact();
+    if(!c){ showToast('操作失败：联系人不存在'); return; }
+    if(!c.blocked){ showToast('当前并没有拉黑'); return; }
+    c.blocked = false;
+    c.lastUnblockReqAt = 0;
+    addMessage('me', `你已将「${c.name}」解除拉黑`, 'sys', null, true, false, '', c.id);
+    if(data.replySettings.autoMsgEnabled && !isGroup(c)) scheduleAutoMessageFor(c.id);
+    if(isGroup(c) && c.groupAuto && c.groupAuto.enabled) scheduleGroupAuto(c.id);
+    saveData(true);
+    try{ renderChatInfo(); }catch(e){}
+    try{ renderHeader(); }catch(e){}
+    if(data.activeContactId === c.id) renderMessagesNow();
+    showToast('✅ 已解除拉黑');
+}
+function dismissUnblockRequest(msgId){
+    const c = getActiveContact(); if(!c || !c.messages) return;
+    c.messages = c.messages.filter(m=>m.id !== msgId);
+    saveData(true);
+    renderMessagesNow();
+    showToast('已忽略这次请求');
 }
 function clearCurrentChatMessages(){
     const c = getActiveContact(); if(!c) return;
@@ -4785,20 +5062,18 @@ function doChatSearch(kw){
 function jumpToSearchResult(msgId){
     closeModal();
     const c = getActiveContact(); if(!c) return;
+    const msgs = c.messages || [];
+    const idx = msgs.findIndex(m=>m.id===msgId);
+    if(idx < 0){ showToast('这条消息已不在本机聊天记录里'); return; }
+
+    // 先把渲染窗口扩到能覆盖目标消息，再切到聊天页，避免"跳不过去"
+    _msgWindowSize = Math.min(msgs.length, Math.max(240, (msgs.length - idx) + 80));
     _suppressAutoScrollOnce = true;
+    _chatAutoScrollUntil = 0;
     switchPage('chat');
-    setTimeout(()=>{
-        const msgs = c.messages || [];
-        const idx = msgs.findIndex(m=>m.id===msgId);
-        if(idx < 0){ showToast('消息已不存在'); return; }
-        const el0 = document.querySelector(`#message-area [data-id="${msgId}"]`);
-        if(!el0){
-            _msgRenderStart = Math.max(0, idx - 15);
-            renderMessagesNow();
-            _msgRenderStart = null;
-        }
-        jumpToMessage(null, msgId);
-    }, 120);
+    _chatAutoScrollUntil = 0;
+    setTimeout(()=>{ _chatAutoScrollUntil = 0; jumpToMessage(null, msgId); }, 80);
+    setTimeout(()=>{ try{ jumpToMessage(null, msgId); }catch(e){} }, 320);
 }
 function deleteActiveContact(){
     const c = getActiveContact(); if(!c) return;
@@ -5558,7 +5833,7 @@ function renderSettingsPage(){
     html += `<div class="me-menu">`;
     menuItems.forEach(item=>{ html += `<div class="me-menu-item" onclick="openSettingsSub('${item.key}')"><div class="me-menu-icon">${item.icon}</div><div class="me-menu-text"><div class="me-menu-title">${item.title}</div><div class="me-menu-desc">${item.desc}</div></div><div class="me-menu-arrow">›</div></div>`; });
     html += `</div>`;
-    html += `<div style="text-align:center;font-size:12px;color:var(--text-light);padding:24px 16px 32px;line-height:1.9;letter-spacing:.3px;"><div>作者：小红书（6868972505）</div><div>二传分享链接请标注作者署名耀衍的梨和字卡名字临冬</div></div>`;
+    html += `<div style="text-align:center;font-size:12px;color:var(--text-light);padding:24px 16px 32px;line-height:1.9;letter-spacing:.3px;"><div>作者：小红书（42150064636）</div><div> 抖音：（65589713963）<div><div>二传分享链接请标注作者署名耀衍的梨和字卡名字临冬</div></div>`;
 
     body.innerHTML = html;
     if(currentSettingsSub) renderSettingsSubPage(currentSettingsSub);
@@ -5698,6 +5973,9 @@ function buildCardSettingsHtml(){
     const quoteProbPercent = Math.round((Number(s.quoteProbability)||0.35)*100);
     const textEmojiPercent = Math.round((Number(s.textEmojiProbability)||0.2)*100);
     const recallPct = Math.round((Number(s.recallProbability)||0.15)*100);
+    const seenNoPct = Math.round((Number(s.seenNoReplyProbability)||0.15)*100);
+    const hangupPct = Math.round((Number(s.hangupProbability)||0)*100);
+    const unblockPct = Math.round((Number(s.unblockRequestProbability)||0.2)*100);
     const skipPct = Math.round((Number(music.skipPauseProbability)||0)*100);
     const invitePct = Math.round((Number(music.inviteProbability)||0.3)*100);
     let html = '<div class="plus-body-inner">';
@@ -5706,6 +5984,7 @@ function buildCardSettingsHtml(){
     html += `<div class="setting-item"><span class="label">最慢回复</span><div class="value"><input type="number" value="${s.maxSeconds}" min="1" max="3600" step="1" onchange="updateReplyField('maxSeconds', this.value)"><span style="font-size:12px;">秒</span></div></div>`;
     html += `<div class="setting-item"><span class="label">字卡回复条数</span><div class="value"><input type="number" value="${s.cardReplyMinCount}" min="1" max="20" step="1" onchange="updateReplyField('cardReplyMinCount', this.value)" style="width:55px;"><span style="font-size:12px;">~</span><input type="number" value="${s.cardReplyMaxCount}" min="1" max="20" step="1" onchange="updateReplyField('cardReplyMaxCount', this.value)" style="width:55px;"><span style="font-size:12px;">条</span></div></div>`;
     html += `<div class="setting-item"><span class="label">已读不回</span><div class="value"><div class="toggle-switch ${s.seenNoReplyEnabled?'active':''}" data-toggle="seenNoReply" onclick="toggleSeenNoReply(event)"></div></div></div>`;
+    html += `<div class="setting-item"><span class="label">已读不回概率</span><div class="value"><input type="number" value="${seenNoPct}" min="0" max="100" step="1" onchange="updateCallEmojiProb('seenNoReplyProbability', this.value)"><span style="font-size:12px;">%</span></div></div>`;
     html += `<div class="setting-item"><span class="label">对方发表情概率</span><div class="value"><input type="number" value="${emojiReplyPercent}" min="0" max="100" step="5" onchange="updateCallEmojiProb('emojiReplyProbability', this.value)"><span style="font-size:12px;">%</span></div></div>`;
     html += `<div class="setting-item"><span class="label">颜文字/Emoji 概率</span><div class="value"><input type="number" value="${textEmojiPercent}" min="0" max="100" step="5" onchange="updateCallEmojiProb('textEmojiProbability', this.value)"><span style="font-size:12px;">%</span></div></div>`;
     html += `<div class="setting-item"><span class="label">对方引用我的概率</span><div class="value"><input type="number" value="${quoteProbPercent}" min="0" max="100" step="5" onchange="updateCallEmojiProb('quoteProbability', this.value)"><span style="font-size:12px;">%</span></div></div>`;
@@ -5716,11 +5995,15 @@ function buildCardSettingsHtml(){
     html += `<div class="setting-item"><span class="label">撤回概率</span><div class="value"><input type="number" value="${recallPct}" min="0" max="100" step="5" onchange="updateRecallProb(this.value)"><span style="font-size:12px;">%</span></div></div>`;
     html += `<div class="setting-item"><span class="label">拼字卡</span><div class="value"><div class="toggle-switch ${s.spellEnabled?'active':''}" data-toggle="spell" onclick="toggleSpell(event)"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">拼字卡数量</span><div class="value"><input type="number" value="${s.spellMinCount}" min="1" max="20" step="1" onchange="updateReplyField('spellMinCount', this.value)" style="width:55px;"><span style="font-size:12px;">~</span><input type="number" value="${s.spellMaxCount}" min="1" max="20" step="1" onchange="updateReplyField('spellMaxCount', this.value)" style="width:55px;"><span style="font-size:12px;">张</span></div></div>`;
+    html += `<div class="sub-group-title">🚫 拉黑 / 解除拉黑</div>`;
+    html += `<div class="setting-item"><span class="label">对方请求解除拉黑概率<span style="display:block;font-size:11px;color:var(--text-light);">被拉黑后每 15 分钟判定一次，两次请求至少间隔 30 分钟；触发后对方会发来解除拉黑请求</span></span><div class="value"><input type="number" value="${unblockPct}" min="0" max="100" step="1" onchange="updateCallEmojiProb('unblockRequestProbability', this.value)"><span style="font-size:12px;">%</span></div></div>`;
     html += `<div class="sub-group-title">📞 来电 / 听歌设置</div>`;
     html += `<div class="setting-item"><span class="label">主动来电概率</span><div class="value"><input type="number" value="${callProbPercent}" min="0" max="100" step="1" onchange="updateCallEmojiProb('callProbability', this.value)"><span style="font-size:12px;">%</span></div></div>`;
+    html += `<div class="setting-item"><span class="label">对方主动挂电话概率<span style="display:block;font-size:11px;color:var(--text-light);">整通电话只随机判定一次；触发后对方会在 30~120 秒内挂断</span></span><div class="value"><input type="number" value="${hangupPct}" min="0" max="100" step="1" onchange="updateCallEmojiProb('hangupProbability', this.value)"><span style="font-size:12px;">%</span></div></div>`;
     html += `<div class="setting-item"><span class="label">🎧 对方邀请听歌</span><div class="value"><div class="toggle-switch ${music.inviteEnabled?'active':''}" onclick="toggleMusicInvite()"></div></div></div>`;
     html += `<div class="setting-item"><span class="label">🎧 邀请概率</span><div class="value"><input type="number" value="${invitePct}" min="0" max="100" step="5" onchange="updateMusicInviteProb(this.value)"><span style="font-size:12px;">%</span></div></div>`;
     html += `<div class="setting-item"><span class="label">✂️ 切歌/暂停概率</span><div class="value"><input type="number" value="${skipPct}" min="0" max="100" step="5" onchange="updateMusicSkipProb(this.value)"><span style="font-size:12px;">%</span></div></div>`;
+    html += `<div class="setting-item"><span class="label">🎵 音乐悬浮窗<span style="display:block;font-size:11px;color:var(--text-light);">关闭音乐页后显示迷你播放器（暂停 / 切歌）</span></span><div class="value"><div class="toggle-switch ${music.floatingEnabled?'active':''}" onclick="toggleMusicFloating()"></div></div></div>`;
     html += '</div>';
     return html;
 }
@@ -6227,17 +6510,199 @@ function renderCallBox(){
     c.innerHTML=`<div class="call-modal" id="callModal"><div class="call-box"><button class="call-minimize" onclick="minimizeCall()">⏺</button><div class="call-avatar">${avatarHtml}</div><div class="call-name">${escapeHtml(name)}</div><div class="call-status" id="callStatus">${statusText}</div><div class="call-countdown" id="callCountdown">${countdownText}</div><div class="call-timer" id="callTimer">${timerText}</div><div class="call-actions"><div class="call-action-wrap"><button class="btn-end" onclick="endCall('')" title="挂断">${phoneSvg}</button><span class="call-action-label">挂断</span></div>${canAnswer?`<div class="call-action-wrap"><button class="btn-answer" onclick="answerCall()" title="接听">${phoneSvg}</button><span class="call-action-label" style="color:#86efac;">接听</span></div>`:''}</div></div></div>`;
 }
 function resetCallMiniPosition(){const mini=document.getElementById('callMini');if(!mini)return;mini.style.left='';mini.style.top='';mini.style.right='16px';mini.style.bottom='130px';}
-function showCallModal(isOutgoing){
-    const c=getActiveContact();if(!c){showToast('请先进入聊天');return;}
-    if(isGroup(c)){showToast('群聊暂不支持通话');return;}
-    if(callState&&callState.active){restoreCall();return;}
+/* ======================================================================
+   群聊通话
+   ====================================================================== */
+function showGroupCallPicker(){
+    const c = getActiveContact();
+    if(!c || !isGroup(c)) return;
+    if(callState && callState.active){ showToast('请先结束当前一对一通话'); return; }
+    if(groupCallState && groupCallState.active){ restoreGroupCall(); return; }
+    const members = (c.members||[]).map(id=>getContact(id)).filter(m=>m && !m.blocked);
+    if(!members.length){ showToast('群里还没有可邀请的成员'); return; }
+    const rows = members.map(m=>`<label class="group-member-item selected" style="cursor:pointer;background:#fff;margin-bottom:6px;"><div class="gmi-avatar">${m.avatar?`<img src="${escapeHtml(m.avatar)}" alt="">`:escapeHtml((m.name||'?')[0].toUpperCase())}</div><div class="gmi-name">${escapeHtml(m.name||'成员')}</div><input type="checkbox" value="${m.id}" checked style="width:20px;height:20px;accent-color:var(--primary);flex-shrink:0;" onchange="this.closest('.group-member-item').classList.toggle('selected', this.checked)"></label>`).join('');
+    showModal('📞 群聊电话', `<label>选择要邀请的成员</label><div class="group-member-list" id="groupCallMemberList" style="max-height:220px;background:#fff;margin-top:6px;">${rows}</div><div class="setting-sub" style="margin-top:8px;">被邀请成员会按「群聊设置 → 群聊电话」里的加入概率陆续接通，接通后也可能中途挂断。</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-confirm" onclick="startGroupCall()">发起通话</button></div>`);
+}
+function startGroupCall(){
+    const c = getActiveContact();
+    if(!c || !isGroup(c)) return;
+    const checked = Array.from(document.querySelectorAll('#groupCallMemberList input[type=checkbox]:checked')).map(x=>x.value);
+    if(!checked.length){ showToast('请至少选择一位成员'); return; }
+    const members = checked.map(id=>getContact(id)).filter(Boolean);
+    if(!members.length){ showToast('所选成员不存在'); return; }
+    closeModal();
+    groupCallState = {
+        active:true, minimized:false, groupId:c.id, groupName:c.name||'群聊',
+        answeredAt:Date.now(),
+        participants: members.map(m=>({id:m.id, name:m.name||'成员', avatar:m.avatar||'', status:'invited'})),
+        timers:[], timerId:null
+    };
+    addMessage('me', `发起了群聊通话`, 'call', null, true, false, '', c.id);
+    groupCallState.timerId = setInterval(updateGroupCallTimer, 1000);
+    renderGroupCallBox();
+    const mini = document.getElementById('callMini'); if(mini) mini.style.display = 'none';
+    scheduleGroupCallJoins();
+    showToast('📞 群聊通话已发起');
+}
+function scheduleGroupCallJoins(){
+    const st = groupCallState; if(!st) return;
+    st.participants.forEach(p=>{
+        if(p.status !== 'invited') return;
+        const delay = 1500 + Math.random()*6500;
+        const t = setTimeout(()=>{
+            const st2 = groupCallState;
+            if(!st2 || !st2.active) return;
+            const p2 = st2.participants.find(x=>x.id === p.id);
+            if(!p2 || p2.status !== 'invited') return;
+            const gc0 = getContact(st2.groupId);
+            const gc = (gc0 && gc0.groupCall) || {joinProbability:0.7, hangupProbability:0.2};
+            const joinProb = Math.min(1, Math.max(0, Number(gc.joinProbability)));
+            if(Math.random() < joinProb){
+                p2.status = 'joined'; p2.joinedAt = Date.now();
+                renderGroupCallBox();
+                showToast(`📞 ${p2.name} 加入了通话`);
+                scheduleGroupCallHangup(p2);
+            }else{
+                p2.status = 'declined';
+                renderGroupCallBox();
+            }
+        }, delay);
+        st.timers.push(t);
+    });
+}
+function scheduleGroupCallHangup(p){
+    const st = groupCallState; if(!st) return;
+    const tick = ()=>{
+        const st2 = groupCallState;
+        if(!st2 || !st2.active) return;
+        const p2 = st2.participants.find(x=>x.id === p.id);
+        if(!p2 || p2.status !== 'joined') return;
+        const gc0 = getContact(st2.groupId);
+        const gc = (gc0 && gc0.groupCall) || {joinProbability:0.7, hangupProbability:0.2};
+        const hangProb = Math.min(1, Math.max(0, Number(gc.hangupProbability)));
+        if(Math.random() < hangProb){
+            p2.status = 'left';
+            renderGroupCallBox();
+            showToast(`📴 ${p2.name} 已挂断`);
+            scheduleGroupCallRejoin(p2);
+            return;
+        }
+        const t = setTimeout(tick, 30000);
+        st2.timers.push(t);
+    };
+    const t = setTimeout(tick, 20000 + Math.random()*20000);
+    st.timers.push(t);
+}
+/* 挂断后：按「成员加入概率」再尝试回到群聊通话 */
+function scheduleGroupCallRejoin(p){
+    const st = groupCallState;
+    if(!st) return;
+    if((p.rejoinCount || 0) >= 3) return;
+    let attempts = 0;
+    const attempt = ()=>{
+        const st2 = groupCallState;
+        if(!st2 || !st2.active) return;
+        const p2 = st2.participants.find(x=>x.id === p.id);
+        if(!p2 || p2.status !== 'left') return;
+        const gc0 = getContact(st2.groupId);
+        const gc = (gc0 && gc0.groupCall) || {joinProbability:0.7, hangupProbability:0.2};
+        const joinProb = Math.min(1, Math.max(0, Number(gc.joinProbability)));
+        if(Math.random() < joinProb){
+            p2.status = 'joined';
+            p2.joinedAt = Date.now();
+            p2.rejoinCount = (p2.rejoinCount || 0) + 1;
+            renderGroupCallBox();
+            showToast(`📞 ${p2.name} 重新加入了通话`);
+            scheduleGroupCallHangup(p2);
+            return;
+        }
+        attempts++;
+        if(attempts < 3){
+            const t = setTimeout(attempt, 30000);
+            st2.timers.push(t);
+        }
+    };
+    const t = setTimeout(attempt, 15000 + Math.random()*20000);
+    st.timers.push(t);
+}
+function groupCallTile(p){
+    const avatar = p.avatar ? `<img src="${escapeHtml(p.avatar)}" alt="">` : `<div class="gc-letter">${escapeHtml((p.name||'?')[0].toUpperCase())}</div>`;
+    const label = p.status==='joined' ? '通话中' : p.status==='invited' ? '等待接听' : p.status==='left' ? '已挂断' : '未加入';
+    return `<div class="gc-tile ${p.status}"><div class="gc-avatar">${avatar}</div><div class="gc-name">${escapeHtml(p.name||'')}</div><div class="gc-status ${p.status}">${label}</div></div>`;
+}
+function renderGroupCallBox(){
+    const st = groupCallState;
+    if(!st || !st.active) return;
+    const layer = getCallLayer(); if(!layer) return;
+    const me = data.user || {name:'我',avatar:''};
+    const meTile = `<div class="gc-tile joined"><div class="gc-avatar">${me.avatar?`<img src="${escapeHtml(me.avatar)}" alt="">`:`<div class="gc-letter">${escapeHtml(((me.name||'我')[0]||'我').toUpperCase())}</div>`}</div><div class="gc-name">${escapeHtml(me.name||'我')}（我）</div><div class="gc-status joined">通话中</div></div>`;
+    const tiles = st.participants.map(groupCallTile).join('');
+    const joined = 1 + st.participants.filter(p=>p.status==='joined').length;
+    const phoneSvg = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+    layer.innerHTML = `<div class="call-modal" id="groupCallModal"><div class="call-box group-call-box">
+        <button class="call-minimize" onclick="minimizeGroupCall()">⏺</button>
+        <div class="call-name" style="font-size:19px;">${escapeHtml(st.groupName)}</div>
+        <div class="call-status">群聊通话 · ${joined} 人在线</div>
+        <div class="call-timer" id="groupCallTimer">${fmtDuration(Math.floor((Date.now()-st.answeredAt)/1000))}</div>
+        <div class="gc-grid">${meTile}${tiles}</div>
+        <div class="call-actions"><div class="call-action-wrap"><button class="btn-end" onclick="endGroupCall('')" title="挂断">${phoneSvg}</button><span class="call-action-label">挂断</span></div></div>
+        <div class="gc-tip">成员可能陆续加入或中途挂断</div>
+    </div></div>`;
+    updateGroupCallTimer();
+}
+function updateGroupCallTimer(){
+    const st = groupCallState;
+    if(!st || !st.active) return;
+    const sec = Math.max(0, Math.floor((Date.now()-st.answeredAt)/1000));
+    st.seconds = sec;
+    const d = fmtDuration(sec);
+    const t = document.getElementById('groupCallTimer'); if(t) t.textContent = d;
+    if(st.minimized){ const mt = document.getElementById('miniTimer'); if(mt) mt.textContent = d; }
+}
+function minimizeGroupCall(){
+    const st = groupCallState; if(!st) return;
+    st.minimized = true;
+    const layer = getCallLayer(); if(layer) layer.innerHTML = '';
+    const mini = document.getElementById('callMini'); if(mini) mini.style.display = 'flex';
+    const mt = document.getElementById('miniTimer'); if(mt) mt.textContent = fmtDuration(Math.floor((Date.now()-st.answeredAt)/1000));
+}
+function restoreGroupCall(){
+    const st = groupCallState; if(!st) return;
+    st.minimized = false;
+    renderGroupCallBox();
+    const mini = document.getElementById('callMini'); if(mini) mini.style.display = 'none';
+}
+function endGroupCall(){
+    const st = groupCallState;
+    if(!st) return;
+    st.timers.forEach(t=>{ try{ clearTimeout(t); }catch(e){} });
+    if(st.timerId) clearInterval(st.timerId);
+    const dur = Math.floor((Date.now()-st.answeredAt)/1000);
+    const joined = 1 + st.participants.filter(p=>p.status==='joined'||p.status==='left').length;
+    addMessage('me', `群聊通话结束（${joined} 人参与 · 通话 ${fmtDuration(dur)}）`, 'call', null, true, false, '', st.groupId);
+    groupCallState = null;
+    const layer = getCallLayer(); if(layer) layer.innerHTML = '';
+    const mini = document.getElementById('callMini'); if(mini) mini.style.display = 'none';
+    showToast('📞 群聊通话已结束');
+}
+function showCallModal(isOutgoing, incomingGroup){
+    let c = null;
+    if(incomingGroup && incomingGroup.callerId) c = getContact(incomingGroup.callerId);
+    else c = getActiveContact();
+    if(!c){showToast('请先进入聊天');return;}
+    if(!incomingGroup && isGroup(c)){ showGroupCallPicker(); return; }
+    if(groupCallState && groupCallState.active){ showToast('群聊通话进行中，请先结束群聊通话'); return; }
+    if(callState&&callState.active){ if(!incomingGroup) restoreCall(); return; }
     callState={active:true,minimized:false,isOutgoing:!!isOutgoing,answered:false,seconds:0,answeredAt:0,
         ringLeft:CALL_RING_TIMEOUT,ringDeadline:Date.now()+CALL_RING_TIMEOUT*1000,
-        ringId:null,timerId:null,timeoutId:null,countdownId:null,contactId:c.id,contactName:c.name||''};
+        ringId:null,timerId:null,timeoutId:null,countdownId:null,contactId:c.id,contactName:c.name||'',
+        pendingGroupCall: incomingGroup || null};
     resetCallMiniPosition();renderCallBox();
     const mini=document.getElementById('callMini');if(mini)mini.style.display='none';
     if(!isOutgoing){
-        startRingTone();showSystemNotification({content:`📞 ${c.name||'对方'} 给你打电话`,type:'call'},false,c.id);
+        const isGroupCall = !!(incomingGroup && incomingGroup.groupId);
+        startRingTone();
+        showSystemNotification({content: isGroupCall ? `📞 ${c.name||'对方'} 邀请你加入群聊通话` : `📞 ${c.name||'对方'} 给你打电话`, type:'call'}, false, isGroupCall ? incomingGroup.groupId : c.id);
         try{if(navigator.vibrate)navigator.vibrate([300,150,300,150,300]);}catch(e){}
                 callState.countdownId=setInterval(()=>{
             if(!callState||!callState.active)return;
@@ -6255,8 +6720,84 @@ function showCallModal(isOutgoing){
         callState.timeoutId=setTimeout(()=>{if(callState&&callState.active&&!callState.answered)endCall('missed');},CALL_RING_TIMEOUT*1000);
     }
 }
+/* 对方主动打来群聊电话：随机选一位群成员作为来电人，先走一对一同样的来电界面 */
+function startIncomingGroupCall(groupId){
+    const g = getContact(groupId || data.activeContactId);
+    if(!g || !isGroup(g)) return;
+    if(callState && callState.active) return;
+    if(groupCallState && groupCallState.active) return;
+    const now = Date.now();
+    const members = (g.members||[]).map(id=>getContact(id)).filter(m=>m && !m.blocked && !(g.mutedUntil && g.mutedUntil[m.id] && g.mutedUntil[m.id] > now));
+    if(!members.length) return;
+    const caller = members[Math.floor(Math.random()*members.length)];
+    showCallModal(false, {groupId:g.id, groupName:g.name||'群聊', callerId:caller.id, callerName:caller.name||'成员'});
+}
+/* 接听群聊来电：切到群聊通话页面，来电人已在通话中，其余成员随机加入 */
+function answerIncomingGroupCall(pg){
+    const cur = callState;
+    if(!cur) return;
+    stopRingTone();
+    if(cur.ringId)clearInterval(cur.ringId);
+    if(cur.timeoutId)clearTimeout(cur.timeoutId);
+    if(cur.countdownId)clearInterval(cur.countdownId);
+    try{ localStorage.removeItem('lingdong_call_state'); }catch(e){}
+    const g = getContact(pg.groupId);
+    const caller = getContact(pg.callerId) || {id:pg.callerId, name:pg.callerName||'成员', avatar:''};
+    cur.active = false;
+    callState = null;
+    const layer = getCallLayer(); if(layer) layer.innerHTML='';
+    const mini = document.getElementById('callMini'); if(mini) mini.style.display='none';
+    if(!g){ showToast('该群聊已不存在'); return; }
+    const now = Date.now();
+    const others = (g.members||[]).map(id=>getContact(id)).filter(m=>m && !m.blocked && m.id !== caller.id);
+    const participants = [
+        {id:caller.id, name:caller.name||'成员', avatar:caller.avatar||'', status:'joined', joinedAt:now},
+        ...others.map(m=>({id:m.id, name:m.name||'成员', avatar:m.avatar||'', status:'invited'}))
+    ];
+    groupCallState = {active:true, minimized:false, incoming:true, groupId:g.id, groupName:g.name||'群聊',
+        answeredAt:now, participants:participants, timers:[], timerId:null};
+    addMessage('partner', `${caller.name||'成员'} 发起了群聊通话`, 'call', null, false, false, caller.name||'', g.id, caller.id);
+    groupCallState.timerId = setInterval(updateGroupCallTimer, 1000);
+    renderGroupCallBox();
+    scheduleGroupCallHangup(groupCallState.participants[0]);
+    scheduleIncomingGroupCallJoins(groupCallState);
+    showToast('📞 已接听群聊通话');
+}
+/* 接听后的其他成员：通话中分多次随机尝试加入，不是一次定生死 */
+function scheduleIncomingGroupCallJoins(st){
+    if(!st || !st.active) return;
+    const watch = (p)=>{
+        let attempts = 0;
+        const attempt = ()=>{
+            const st2 = groupCallState;
+            if(!st2 || !st2.active) return;
+            const p2 = st2.participants.find(x=>x.id === p.id);
+            if(!p2 || p2.status !== 'invited') return;
+            const gc0 = getContact(st2.groupId);
+            const gc = (gc0 && gc0.groupCall) || {};
+            const joinProb = Math.min(1, Math.max(0, Number(gc.joinProbability)||0));
+            if(Math.random() < joinProb){
+                p2.status = 'joined';
+                p2.joinedAt = Date.now();
+                renderGroupCallBox();
+                showToast(`📞 ${p2.name} 加入了通话`);
+                scheduleGroupCallHangup(p2);
+                return;
+            }
+            attempts++;
+            if(attempts < 5){
+                const t = setTimeout(attempt, 15000 + Math.random()*20000);
+                st2.timers.push(t);
+            }
+        };
+        const t = setTimeout(attempt, 2500 + Math.random()*7000);
+        st.timers.push(t);
+    };
+    st.participants.filter(p=>p.status === 'invited').forEach(watch);
+}
 function answerCall(){
     if(!callState||callState.answered)return;
+    if(callState.pendingGroupCall){ answerIncomingGroupCall(callState.pendingGroupCall); return; }
     callState.answered=true;
     callState.answeredAt=Date.now();
     stopRingTone();
@@ -6276,7 +6817,21 @@ function answerCall(){
     callState.timerId=setInterval(updateCallTimerDisplay,1000);
     updateCallTimerDisplay();
     try{ renderCallBox(); }catch(e){}   // 接听后只留「挂断」，不再出现接听按钮
+    schedulePartnerHangup();
     showToast('📞 已接通');
+}
+/* 通话中对方主动挂断（概率可在字卡设置里自定义；整通电话只随机判定一次） */
+function schedulePartnerHangup(){
+    if(!callState) return;
+    if(callState.hangupTimer){ clearTimeout(callState.hangupTimer); callState.hangupTimer = null; }
+    const prob = Math.min(1, Math.max(0, Number(data.replySettings.hangupProbability) || 0));
+    if(prob <= 0) return;
+    // ⭐ 整通电话只随机判定一次，不再每 30 秒反复判定（避免电话总是很快被挂断）
+    if(Math.random() >= prob) return;
+    const delay = 30000 + Math.random() * 90000;
+    callState.hangupTimer = setTimeout(()=>{
+        if(callState && callState.active && callState.answered){ try{ endCall('partner_hangup'); }catch(e){} }
+    }, delay);
 }
 function endCall(reason){
     if(!callState)return;
@@ -6286,21 +6841,36 @@ function endCall(reason){
     if(callState.timerId)clearInterval(callState.timerId);
     if(callState.timeoutId)clearTimeout(callState.timeoutId);
     if(callState.countdownId)clearInterval(callState.countdownId);
+    if(callState.hangupTimer)clearTimeout(callState.hangupTimer);
      const dur = callState.answered ? getCallElapsedSeconds() : 0;
     const isOut = callState.isOutgoing, answered = callState.answered;
     const cid = callState.contactId || null;
+    const pendingGroup = callState.pendingGroupCall || null;
+    if(pendingGroup){
+        const g = getContact(pendingGroup.groupId);
+        const callerName = callState.contactName || '对方';
+        if(g) addMessage('me', answered ? `群聊通话结束（通话 ${fmtDuration(dur)}）` : `未接听${callerName}的群聊通话`, 'call', null, true, false, '', g.id);
+        try{ localStorage.removeItem('lingdong_call_state'); }catch(e){}
+        callState.active=false; callState=null;
+        const layer=getCallLayer(); if(layer) layer.innerHTML='';
+        const mini=document.getElementById('callMini'); if(mini) mini.style.display='none';
+        showToast(answered ? '📞 通话结束' : '📞 未接听');
+        return;
+    }
     let content='',shouldRecord=true;
     if(isOut){
         if(reason==='rejected')content='对方拒绝了来电';
         else if(reason==='missed')content='对方未接听';
+        else if(reason==='partner_hangup')content=`ta挂断了电话（通话 ${fmtDuration(dur)}）`;
         else if(answered)content=`我打给ta（通话 ${fmtDuration(dur)}）`;
         else shouldRecord=false;
     }else{
         if(reason==='missed'||!answered)content='你未接听';
+        else if(reason==='partner_hangup')content=`ta挂断了电话（通话 ${fmtDuration(dur)}）`;
         else content=`ta打给我（通话 ${fmtDuration(dur)}）`;
     }
     if(shouldRecord&&content)addMessage(isOut?'me':'partner',content,'call',null,true,false,'',cid);
-    const toastMsg=reason==='rejected'?'📞 对方拒接':reason==='missed'?'📞 未接听':answered?'📞 通话结束':'';
+    const toastMsg=reason==='rejected'?'📞 对方拒接':reason==='missed'?'📞 未接听':reason==='partner_hangup'?'📴 对方已挂断电话':answered?'📞 通话结束':'';
        try{ localStorage.removeItem('lingdong_call_state'); }catch(e){}
     callState.active=false;callState=null;
     const c=getCallLayer();if(c)c.innerHTML='';
@@ -6320,6 +6890,9 @@ document.addEventListener('visibilitychange', function(){
         if(document.visibilityState==='visible' && callState && callState.active && !callState.minimized && !document.getElementById('callModal')){
             renderCallBox();
         }
+        if(document.visibilityState==='visible' && groupCallState && groupCallState.active && !groupCallState.minimized && !document.getElementById('groupCallModal')){
+            renderGroupCallBox();
+        }
     }catch(e){}
 });
 function initCallMiniDrag(){
@@ -6328,7 +6901,7 @@ function initCallMiniDrag(){
     const getPoint=e=>{if(e.touches&&e.touches[0])return e.touches[0];if(e.changedTouches&&e.changedTouches[0])return e.changedTouches[0];return e;};
     const onStart=e=>{const pt=getPoint(e),rect=mini.getBoundingClientRect();drag={offsetX:pt.clientX-rect.left,offsetY:pt.clientY-rect.top,startX:pt.clientX,startY:pt.clientY,moved:false};mini.classList.add('dragging');if(e.cancelable)e.preventDefault();};
     const onMove=e=>{if(!drag)return;const pt=getPoint(e);if(Math.abs(pt.clientX-drag.startX)>5||Math.abs(pt.clientY-drag.startY)>5)drag.moved=true;const x=pt.clientX-drag.offsetX,y=pt.clientY-drag.offsetY;const w=mini.offsetWidth,h=mini.offsetHeight;const maxX=Math.max(0,window.innerWidth-w),maxY=Math.max(0,window.innerHeight-h);mini.style.left=Math.max(0,Math.min(maxX,x))+'px';mini.style.top=Math.max(0,Math.min(maxY,y))+'px';mini.style.right='auto';mini.style.bottom='auto';if(e.cancelable)e.preventDefault();};
-    const onEnd=()=>{if(!drag)return;const moved=drag.moved;drag=null;mini.classList.remove('dragging');if(!moved)restoreCall();};
+    const onEnd=()=>{if(!drag)return;const moved=drag.moved;drag=null;mini.classList.remove('dragging');if(!moved){ if(groupCallState && groupCallState.active) restoreGroupCall(); else restoreCall(); }};
     mini.addEventListener('touchstart',onStart,{passive:false});
     mini.addEventListener('touchmove',onMove,{passive:false});
     mini.addEventListener('touchend',onEnd);mini.addEventListener('touchcancel',onEnd);
@@ -6523,21 +7096,15 @@ function getMusicAudio(){
     return musicAudio;
 }
 function silentPauseAudio(){pauseGuardToken++;const myToken=pauseGuardToken;try{const a=getMusicAudio();if(a)a.pause();}catch(e){}setTimeout(()=>{if(pauseGuardToken===myToken)pauseGuardToken=0;},1200);}
-function openMusic(){closePlusMenu();const panel=document.getElementById('musicPanel');if(!panel)return;musicPanelOpen=true;panel.classList.add('open');renderMusicPage();updateMusicBottomBar();}
-function closeMusic(){const panel=document.getElementById('musicPanel');if(panel)panel.classList.remove('open');musicPanelOpen=false;}
+function openMusic(){closePlusMenu();const panel=document.getElementById('musicPanel');if(!panel)return;musicPanelOpen=true;panel.classList.add('open');renderMusicPage();updateMusicBottomBar();try{updateMusicMini();}catch(e){}}
+function closeMusic(){const panel=document.getElementById('musicPanel');if(panel)panel.classList.remove('open');musicPanelOpen=false;try{updateMusicMini();}catch(e){}}
 function resolveMusicUrl(song){if(!song)return '';if(song.source==='netease'&&song.neteaseId)return `https://music.163.com/song/media/outer/url?id=${song.neteaseId}.mp3`;return song.url||'';}
 function parseMusicLink(input){
     const t=String(input||'').trim();if(!t)return null;
     if(/^\d{4,}$/.test(t))return {source:'netease',neteaseId:t,url:'',name:'网易云 '+t,artist:''};
     const m=t.match(/[?&]id=(\d+)/);
     if(m&&/music\.163\.com/i.test(t))return {source:'netease',neteaseId:m[1],url:'',name:'网易云 '+m[1],artist:''};
-    if(/^https?:\/\//i.test(t)){let name=t.split('/').pop().split('?')[0]||'网络音乐';try{name=decodeURIComponent(name);}catch(e){}if(name.length>40)name=name.slice(0,40)+'…';return {source:'link',url:t,neteaseId:'',name:name||'网络音乐',artist:''};}
-    return null;
-}
-async function fetchNeteaseSongInfo(id){
-    const targets=[`https://music.163.com/api/song/detail/?ids=[${id}]&id=${id}`,`https://music.163.com/api/song/detail?ids=[${id}]`];
-    const proxies=[u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),u=>'https://corsproxy.io/?url='+encodeURIComponent(u),u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)];
-    for(const t of targets){for(const make of proxies){try{const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),6000);const r=await fetch(make(t),{signal:ctrl.signal});clearTimeout(timer);if(!r.ok)continue;const text=await r.text();let j=null;try{j=JSON.parse(text);}catch(e){continue;}let s=null;if(j&&j.songs&&j.songs[0])s=j.songs[0];else if(j&&j.result&&j.result.songs&&j.result.songs[0])s=j.result.songs[0];if(s){const name=s.name||'';const artists=(s.artists||s.ar||[]).map(a=>a.name).filter(Boolean).join(' / ');if(name)return {name,artist:artists};}}catch(e){}}}
+    if(/^https?:\/\//i.test(t)){let name=t.split('/').pop().split('?')[0]||'网络音乐';try{name=decodeURIComponent(name);}catch(e){}name=name.replace(/\.(mp3|m4a|aac|wav|flac|ogg|opus|wma|ape|webm)$/i,'').trim();if(name.length>40)name=name.slice(0,40)+'…';return {source:'link',url:t,neteaseId:'',name:name||'网络音乐',artist:''};}
     return null;
 }
 function renderMusicPage(){
@@ -6549,6 +7116,7 @@ function renderMusicPage(){
     let html='';
     html+=`<div class="music-row"><button class="music-action-btn" onclick="uploadMusicFiles()">📁 上传音乐文件</button><button class="music-action-btn" onclick="showMusicLinkModal()">🔗 链接添加</button></div>`;
     html+=`<div class="music-row"><button class="music-action-btn" onclick="showMusicManage()">🗂 批量管理</button><button class="music-action-btn" onclick="removeVipMusic()">🚫 去除会员音乐</button></div>`;
+    html+=`<div class="music-panel-toggle"><div style="text-align:left;min-width:0;"><div class="music-toggle-title">🎵 音乐悬浮窗</div><div class="music-toggle-desc">关闭音乐页后显示迷你播放器（暂停 / 切歌）</div></div><div class="toggle-switch ${m.floatingEnabled?'active':''}" onclick="toggleMusicFloating()"></div></div>`;
     if(cur){html+=`<div class="music-player"><div class="music-cover${m.playing?' spinning':''}">🎵</div><div class="music-title">${escapeHtml(cur.name)}</div>${cur.artist?`<div class="music-artist">${escapeHtml(cur.artist)}</div>`:'<div class="music-artist" style="opacity:0;">-</div>'}<div class="music-progress" id="musicProgress" onclick="seekMusic(event)"><div class="music-progress-bar" id="musicProgressBar" style="width:${progress}%"></div></div><div class="music-time"><span id="musicCurTime">${fmtMusicTime(a?a.currentTime:0)}</span><span id="musicDurTime">${fmtMusicTime(a&&isFinite(a.duration)?a.duration:0)}</span></div></div>`;}
     else if(m.list.length===0){html+=`<div class="empty-state"><div class="empty-icon">🎵</div><div>还没有音乐<br>上传文件或添加链接吧</div></div>`;}
     else{html+=`<div class="empty-state"><div class="empty-icon">🎵</div><div>点击下方列表开始播放</div></div>`;}
@@ -6571,8 +7139,58 @@ function updateMusicBottomBar(){
     const btn=document.getElementById('mbPlayBtn');if(btn)btn.textContent=m.playing?'⏸':'▶';
     const loopBtn=document.getElementById('mbLoopBtn');
     if(loopBtn){const mode=m.loopMode||'list';loopBtn.textContent=mode==='one'?'🔂':(mode==='shuffle'?'🔀':'🔁');}
+    try{ updateMusicMini(); }catch(e){}
+}
+/* ===== 音乐悬浮窗 ===== */
+function updateMusicMini(){
+    const el = document.getElementById('musicMini'); if(!el) return;
+    const m = data.music;
+    const has = !!(m && m.currentIndex >= 0 && Array.isArray(m.list) && m.list[m.currentIndex]);
+    const show = has && !!m.floatingEnabled && !musicPanelOpen;
+    if(!show){ el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    const song = m.list[m.currentIndex];
+    const nameEl = document.getElementById('mmName'), artistEl = document.getElementById('mmArtist'), playBtn = document.getElementById('mmPlay');
+    if(nameEl) nameEl.textContent = song.name || '未播放';
+    if(artistEl) artistEl.textContent = song.artist || '';
+    if(playBtn) playBtn.textContent = (typeof musicAudio !== 'undefined' && musicAudio && !musicAudio.paused) ? '⏸' : '▶';
+}
+function initMusicMiniDrag(){
+    const mini = document.getElementById('musicMini'); if(!mini || mini._mmDragBound) return;
+    mini._mmDragBound = true;
+    let drag = null;
+    const getPoint = e=>{ if(e.touches&&e.touches[0]) return e.touches[0]; if(e.changedTouches&&e.changedTouches[0]) return e.changedTouches[0]; return e; };
+    const onStart = e=>{
+        if(e.target && e.target.closest && e.target.closest('button')) return;
+        const pt = getPoint(e), rect = mini.getBoundingClientRect();
+        drag = {offsetX:pt.clientX-rect.left, offsetY:pt.clientY-rect.top, startX:pt.clientX, startY:pt.clientY, moved:false};
+        mini.classList.add('dragging');
+    };
+    const onMove = e=>{
+        if(!drag) return;
+        const pt = getPoint(e);
+        if(Math.abs(pt.clientX-drag.startX)>5 || Math.abs(pt.clientY-drag.startY)>5) drag.moved = true;
+        const x = pt.clientX - drag.offsetX, y = pt.clientY - drag.offsetY;
+        const w = mini.offsetWidth, h = mini.offsetHeight;
+        const maxX = Math.max(0, window.innerWidth - w), maxY = Math.max(0, window.innerHeight - h);
+        mini.style.left = Math.max(0, Math.min(maxX, x)) + 'px';
+        mini.style.top = Math.max(0, Math.min(maxY, y)) + 'px';
+        mini.style.right = 'auto'; mini.style.bottom = 'auto';
+        if(e.cancelable) e.preventDefault();
+    };
+    const onEnd = ()=>{
+        if(!drag) return;
+        const moved = drag.moved; drag = null; mini.classList.remove('dragging');
+        if(!moved && mini.style.display !== 'none'){ try{ openMusic(); }catch(e){} }
+    };
+    mini.addEventListener('touchstart', onStart, {passive:false});
+    mini.addEventListener('touchmove', onMove, {passive:false});
+    mini.addEventListener('touchend', onEnd); mini.addEventListener('touchcancel', onEnd);
+    mini.addEventListener('mousedown', onStart);
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onEnd);
 }
 function toggleMusicInvite(){data.music.inviteEnabled=!data.music.inviteEnabled;if(!data.music.inviteEnabled)data.music.controlAllowed=false;saveData(true);renderSettingsPage();showToast(data.music.inviteEnabled?'已开启：对方可以邀请你听歌 🎧':'已关闭：对方不再邀请你听歌');}
+function toggleMusicFloating(){data.music.floatingEnabled=!data.music.floatingEnabled;saveData(true);try{if(musicPanelOpen)renderMusicPage();}catch(e){}try{updateMusicMini();}catch(e){}showToast(data.music.floatingEnabled?'🎵 音乐悬浮窗已开启':'已关闭音乐悬浮窗');}
 function updateMusicSkipProb(val){let n=parseFloat(val);if(isNaN(n)||n<0)n=0;if(n>100)n=100;data.music.skipPauseProbability=n/100;saveData(true);showToast('已设置：切歌/暂停概率 '+Math.round(n)+'%');}
 function updateMusicInviteProb(val){let n=parseFloat(val);if(isNaN(n)||n<0)n=0;if(n>100)n=100;data.music.inviteProbability=n/100;saveData(true);showToast('已设置：邀请概率 '+Math.round(n)+'%');}
 function playMusicAt(index){
@@ -6660,7 +7278,7 @@ function getMusicFileInput(){
 }
 function uploadMusicFiles(){const input=getMusicFileInput();input.value='';setTimeout(()=>{try{input.click();}catch(e){showToast('无法打开文件选择');}},30);}
 function showMusicLinkModal(){
-    showModal('🔗 链接添加音乐',`<label>网易云歌曲 ID 或音乐直链</label><textarea id="musicLinkInput" rows="6" placeholder="支持批量，每行一条：&#10;1234567890&#10;https://music.163.com/song?id=1234567890&#10;https://example.com/song.mp3"></textarea><div class="setting-sub">· 网易云歌曲会先以 ID 显示，可在「批量管理」中手动识别歌名<br>· 其他 http(s) 链接作为直链播放<br>· 每行一条，可批量导入</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-confirm" onclick="confirmMusicLinks()">添加</button></div>`);
+    showModal('🔗 链接添加音乐',`<label>网易云歌曲 ID 或音乐直链</label><textarea id="musicLinkInput" rows="6" placeholder="支持批量，每行一条：&#10;1234567890&#10;https://music.163.com/song?id=1234567890&#10;https://example.com/song.mp3"></textarea><div class="setting-sub">· 添加后先用链接里的文件名作为歌名，歌手留空，可在「批量管理」里点 ✎ 手动填写歌名和歌手<br>· 其他 http(s) 链接作为直链播放<br>· 每行一条，可批量导入</div><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-confirm" onclick="confirmMusicLinks()">添加</button></div>`);
 }
 function confirmMusicLinks(){
     const ta=document.getElementById('musicLinkInput');if(!ta)return;
@@ -6706,19 +7324,6 @@ async function removeVipMusic(){
     saveData(true);if(musicPanelOpen)renderMusicPage();
     showToast(`已删除 ${toRemove.size} 首无法播放的歌曲`);
 }
-async function recognizeMusicName(id){
-    const song=data.music.list.find(x=>x.id===id);if(!song)return;
-    if(song.source!=='netease'||!song.neteaseId){showToast('仅支持网易云歌曲');return;}
-    showToast('正在识别，请稍候...');
-    const info=await fetchNeteaseSongInfo(song.neteaseId);
-    if(info){
-        if(info.name)song.name=info.name;
-        if(info.artist)song.artist=info.artist;
-        saveData(true);if(musicPanelOpen)renderMusicPage();
-        if(document.querySelector('.modal-title')&&document.querySelector('.modal-title').textContent.indexOf('批量管理')>=0)renderMusicManageModal();
-        showToast('✅ 已更新：'+song.name+(song.artist?' · '+song.artist:''));
-    }else showToast('识别失败，请稍后再试');
-}
 let _musicManageSelected=new Set();
 function showMusicManage(){_musicManageSelected.clear();renderMusicManageModal();}
 function renderMusicManageModal(){
@@ -6727,8 +7332,7 @@ function renderMusicManageModal(){
     html+=`<div style="display:flex;align-items:center;gap:10px;padding:4px 4px 10px;border-bottom:1px solid var(--border);"><div class="mm-check" id="musicSelectAllBox" style="width:20px;height:20px;border:2px solid var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;background:#fff;cursor:pointer;color:#fff;font-size:13px;font-weight:700;" onclick="toggleSelectAllMusic()"></div><span style="font-size:14px;cursor:pointer;" onclick="toggleSelectAllMusic()">全选</span><span style="margin-left:auto;font-size:12px;color:var(--text-light);">已选 <b id="musicSelectedCount" style="color:var(--primary);">0</b> 项</span></div><div style="max-height:46vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-top:10px;" id="musicManageList">`;
     list.forEach((song,i)=>{
         const sel=_musicManageSelected.has(song.id);
-        const isNetease=song.source==='netease'&&song.neteaseId;
-        html+=`<div class="music-manage-row" data-mid="${song.id}"><div class="mm-check" onclick="toggleMusicSelect('${song.id}')">✓</div><div class="mm-info" onclick="toggleMusicSelect('${song.id}')">${i+1}. ${escapeHtml(song.name)}${song.artist?' · '+escapeHtml(song.artist):''}</div>${isNetease?`<button class="mm-btn mm-rename" onclick="event.stopPropagation();recognizeMusicName('${song.id}')" title="识别歌名">🔍</button>`:''}<button class="mm-btn mm-rename" onclick="event.stopPropagation();renameMusic('${song.id}')" title="修改昵称">✎</button><button class="mm-btn mm-del" onclick="event.stopPropagation();deleteMusic('${song.id}')" title="单独删除">🗑</button></div>`;
+        html+=`<div class="music-manage-row" data-mid="${song.id}"><div class="mm-check" onclick="toggleMusicSelect('${song.id}')">✓</div><div class="mm-info" onclick="toggleMusicSelect('${song.id}')">${i+1}. ${escapeHtml(song.name)}${song.artist?' · '+escapeHtml(song.artist):''}</div><button class="mm-btn mm-rename" onclick="event.stopPropagation();renameMusic('${song.id}')" title="修改歌名 / 歌手">✎</button><button class="mm-btn mm-del" onclick="event.stopPropagation();deleteMusic('${song.id}')" title="单独删除">🗑</button></div>`;
     });
     html+=`</div><div class="modal-actions" style="margin-top:14px;flex-wrap:wrap;"><button class="btn-danger" onclick="deleteSelectedMusic()">删除选中</button><button class="btn-cancel" onclick="closeModal()">关闭</button></div>`;
     showModal('🗂 批量管理',html);updateMusicManageUI();
@@ -6766,8 +7370,22 @@ function deleteMusic(id){
 }
 function renameMusic(id){
     const song=data.music.list.find(x=>x.id===id);if(!song)return;
-    const n=prompt('修改名称：',song.name);
-    if(n!==null&&n.trim()){song.name=n.trim();saveData(true);if(musicPanelOpen)renderMusicPage();renderMusicManageModal();showToast('已重命名');}
+    showModal('✎ 修改歌曲信息',`<label>歌名</label><input id="musicRenameName" value="${escAttr(song.name||'')}" placeholder="输入歌名" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:12px;"><label>歌手</label><input id="musicRenameArtist" value="${escAttr(song.artist||'')}" placeholder="输入歌手，可留空" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;"><div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">取消</button><button class="btn-confirm" onclick="saveMusicInfo('${id}')">保存</button></div>`);
+}
+function saveMusicInfo(id){
+    const song=data.music.list.find(x=>x.id===id);if(!song)return;
+    const nameEl=document.getElementById('musicRenameName');
+    const artistEl=document.getElementById('musicRenameArtist');
+    const name=nameEl?nameEl.value.trim():'';
+    const artist=artistEl?artistEl.value.trim():'';
+    if(!name){showToast('歌名不能为空');return;}
+    song.name=name;
+    song.artist=artist;
+    saveData(true);
+    closeModal();
+    if(musicPanelOpen)renderMusicPage();
+    renderMusicManageModal();
+    showToast('✅ 已保存：'+song.name+(song.artist?' · '+song.artist:''));
 }
 function maybeMusicInteraction(){
     if(callState&&callState.active)return;
@@ -7454,9 +8072,9 @@ function openClockCardSetting(direction){
     clockState.stage='cards';
     renderClockPage();
 }
-function clockCardsBack(){clockState.stage='home';clockState.cardDir=null;renderClockPage();}
-function setClockScope(scope){clockScope=scope;renderClockCardsManage(document.getElementById('clockBody'));}
-function changeClockOwner(id){clockState.clockOwnerId=id;renderClockCardsManage(document.getElementById('clockBody'));}
+function clockCardsBack(){clockState.stage='home';clockState.cardDir=null;_clockBatchMode=false;_clockBatchSelected.clear();renderClockPage();}
+function setClockScope(scope){clockScope=scope;_clockBatchMode=false;_clockBatchSelected.clear();renderClockCardsManage(document.getElementById('clockBody'));}
+function changeClockOwner(id){clockState.clockOwnerId=id;_clockBatchMode=false;_clockBatchSelected.clear();renderClockCardsManage(document.getElementById('clockBody'));}
 function renderClockCardsManage(body){
     ensureClockCards();
     const dir=clockState.cardDir||'place';
@@ -7476,7 +8094,14 @@ function renderClockCardsManage(body){
     }
     html+=`<div style="display:flex;gap:8px;margin-bottom:10px;"><input id="clockNewCardInput" placeholder="输入字卡内容（每行一条）" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:14px;outline:none;font-family:inherit;"><button class="btn-primary" style="padding:10px 16px;border-radius:10px;background:linear-gradient(135deg,#8B5CF6,#A78BFA);" onclick="clockAddCard()">添加</button></div>`;
     html+=`<div style="margin-bottom:12px;"><button class="btn-outline" style="width:100%;color:rgba(255,255,255,.8);border-color:rgba(255,255,255,.25);" onclick="clockBatchImport()">📥 批量导入</button></div>`;
+    html+=`<div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn-outline" style="flex:1;color:${_clockBatchMode?'#FCA5A5':'rgba(255,255,255,.85)'};border-color:rgba(255,255,255,.25);" onclick="${_clockBatchMode?'clockExitBatch()':'clockEnterBatch()'}">${_clockBatchMode?'✖ 退出批量':'🧹 批量删除'}</button>${_clockBatchMode?`<button class="btn-outline" style="flex:1;color:rgba(255,255,255,.85);border-color:rgba(255,255,255,.25);" onclick="clockSelectAll()">${_clockBatchSelected.size>=list.length&&list.length?'取消全选':'全选'}</button>`:''}</div>`;
     if(!list.length){html+=`<div style="text-align:center;padding:40px 20px;color:rgba(255,255,255,.5);"><div style="font-size:44px;margin-bottom:12px;opacity:.6;">📇</div><div>还没有字卡，先添加一些吧</div></div>`;}
+    else if(_clockBatchMode){
+        html+='<div style="display:flex;flex-direction:column;gap:8px;">';
+        list.forEach(x=>{const checked=_clockBatchSelected.has(x.id);html+=`<div onclick="clockToggleSelect('${x.id}')" style="display:flex;align-items:center;gap:10px;background:${checked?'rgba(139,92,246,.22)':'rgba(255,255,255,.07)'};border:1px solid ${checked?'rgba(167,139,250,.8)':'rgba(255,255,255,.12)'};border-radius:10px;padding:11px 12px;cursor:pointer;"><span style="width:22px;height:22px;border-radius:50%;border:2px solid ${checked?'#A78BFA':'rgba(255,255,255,.35)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;color:#fff;background:${checked?'#8B5CF6':'transparent'};">${checked?'✓':''}</span><span style="flex:1;font-size:14px;word-break:break-word;">${escapeHtml(x.word)}</span><span style="font-size:10px;padding:1px 6px;border-radius:6px;background:${x.scope==='shared'?'rgba(139,92,246,.3)':'rgba(239,68,68,.25)'};color:#fff;">${x.scope==='shared'?'公共':'独立'}</span></div>`;});
+        html+='</div>';
+        html+=`<button class="btn-primary" style="width:100%;margin-top:12px;padding:11px;border-radius:10px;background:${_clockBatchSelected.size?'linear-gradient(135deg,#ef4444,#f97316)':'rgba(255,255,255,.12)'};color:#fff;" onclick="clockBatchDelete()">🗑 删除选中（${_clockBatchSelected.size}）</button>`;
+    }
     else{
         html+='<div style="display:flex;flex-direction:column;gap:8px;">';
         list.forEach(x=>{const scopeTag=x.scope==='shared'?'公共':'独立';html+=`<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:11px 12px;"><span style="flex:1;font-size:14px;word-break:break-word;">${escapeHtml(x.word)}</span><span style="font-size:10px;padding:1px 6px;border-radius:6px;background:${x.scope==='shared'?'rgba(139,92,246,.3)':'rgba(239,68,68,.25)'};color:#fff;">${scopeTag}</span><button style="background:none;border:none;color:#A78BFA;font-size:16px;cursor:pointer;padding:2px 6px;" onclick="clockEditCard('${x.id}')">✎</button><button style="background:none;border:none;color:#FCA5A5;font-size:16px;cursor:pointer;padding:2px 6px;" onclick="clockDeleteCard('${x.id}')">🗑</button></div>`;});
@@ -7520,6 +8145,43 @@ function confirmClockBatchImport(){
     lines.forEach(w=>{if(existing.has(w)){skipped++;return;}list.push({id:genId(),word:w,scope:clockScope,ownerId});existing.add(w);added++;});
     saveData(true);closeModal();renderClockCardsManage(document.getElementById('clockBody'));
     showToast(`导入完成：新增 ${added} 张，跳过 ${skipped} 张`);
+}
+function clockEnterBatch(){
+    _clockBatchMode = true; _clockBatchSelected.clear();
+    renderClockCardsManage(document.getElementById('clockBody'));
+}
+function clockExitBatch(){
+    _clockBatchMode = false; _clockBatchSelected.clear();
+    renderClockCardsManage(document.getElementById('clockBody'));
+}
+function clockToggleSelect(id){
+    if(!_clockBatchSelected) _clockBatchSelected = new Set();
+    if(_clockBatchSelected.has(id)) _clockBatchSelected.delete(id); else _clockBatchSelected.add(id);
+    renderClockCardsManage(document.getElementById('clockBody'));
+}
+function clockSelectAll(){
+    ensureClockCards();
+    const dir = clockState.cardDir || 'place';
+    const allList = dir === 'place' ? data.clockCards.place : data.clockCards.action;
+    let ownerId = clockState.clockOwnerId;
+    if(clockScope === 'private' && !ownerId){ const c=getActiveContact(); ownerId = (c && !isGroup(c)) ? c.id : ((data.contacts.filter(x=>!isGroup(x))[0]||{}).id || null); }
+    const list = allList.filter(x=>{ if(x.scope==='shared') return true; if(x.scope==='private' && x.ownerId===ownerId) return true; return false; });
+    if(_clockBatchSelected.size >= list.length) _clockBatchSelected.clear();
+    else list.forEach(x=>_clockBatchSelected.add(x.id));
+    renderClockCardsManage(document.getElementById('clockBody'));
+}
+function clockBatchDelete(){
+    if(!_clockBatchSelected || !_clockBatchSelected.size){ showToast('请先选择要删除的字卡'); return; }
+    if(!confirm(`确定删除选中的 ${_clockBatchSelected.size} 张查岗字卡吗？`)) return;
+    const dir = clockState.cardDir || 'place';
+    const list = dir === 'place' ? data.clockCards.place : data.clockCards.action;
+    const del = new Set(_clockBatchSelected);
+    const keep = list.filter(x=>!del.has(x.id));
+    if(dir === 'place') data.clockCards.place = keep; else data.clockCards.action = keep;
+    _clockBatchSelected.clear(); _clockBatchMode = false;
+    saveData(true);
+    renderClockCardsManage(document.getElementById('clockBody'));
+    showToast(`已删除 ${del.size} 张字卡`);
 }
 function clockDeleteCard(id){
     const dir=clockState.cardDir||'place';
@@ -7773,6 +8435,23 @@ function setupBackGuard(){
 // ======================================================================
 //  IDB 镜像恢复
 // ======================================================================
+/* 把 localStorage 精简快照里比 IDB 多出来的消息并回完整数据（防止 IDB 写入滞后导致丢消息） */
+function mergeLocalMessagesIntoData(localParsed){
+    try{
+        if(!localParsed || !Array.isArray(localParsed.contacts) || !Array.isArray(data.contacts)) return;
+        localParsed.contacts.forEach(lc=>{
+            if(!lc || !Array.isArray(lc.messages)) return;
+            const c = data.contacts.find(x=>x && x.id === lc.id);
+            if(!c) return;
+            if(!Array.isArray(c.messages)) c.messages = [];
+            const ids = new Set(c.messages.map(m=>m && m.id));
+            const extra = lc.messages.filter(m=>m && m.id && !ids.has(m.id));
+            if(extra.length){
+                c.messages = c.messages.concat(extra).sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+            }
+        });
+    }catch(e){}
+}
 async function restoreFromIDB(force){
     try{
         if(!('indexedDB' in window)) return;
@@ -7791,7 +8470,9 @@ async function restoreFromIDB(force){
 
         const localTime = (localParsed && localParsed._updatedAt) || 0;
         const idbTime = (idbParsed && idbParsed._updatedAt) || 0;
-       const useIDB = force || (!localParsed) || (idbParsed && idbTime >= localTime);
+        const localIsSlim = !!(localParsed && localParsed._slimmed);
+        // ⭐ localStorage 里的只是「精简快照」（消息被截断），不能因为时间戳更新就覆盖 IDB 完整数据
+        const useIDB = force || (!localParsed) || (idbParsed && !idbParsed._slimmed && (localIsSlim || idbTime >= localTime));
 
         if(useIDB && idbParsed && typeof idbParsed==='object' && !Array.isArray(idbParsed)){
             const hasData = (idbParsed.moments && Array.isArray(idbParsed.moments.posts) && idbParsed.moments.posts.length) ||
@@ -7803,6 +8484,7 @@ async function restoreFromIDB(force){
             if(hasData){
                 data = deepMerge(defaultData(), idbParsed);
                 initDataFields();
+                mergeLocalMessagesIntoData(localParsed);
                 await restoreAssetsFromIDB();
                 saveData(true);
                 return;
@@ -7816,8 +8498,7 @@ async function restoreFromIDB(force){
     }catch(e){}
 }
 
-async function restoreAssetsFromIDB(){
-    try{
+async function restoreAssetsFromIDB(){    try{
         const userAvatar = await idbGet('user_avatar');
         if(userAvatar && data.user && !data.user.avatar){
             data.user.avatar = userAvatar;
@@ -8002,11 +8683,18 @@ async function init(){
     // ========== 加载数据和初始化界面 ==========
     loadData();
     try{ await restoreFromIDB(); }catch(e){}
+    try{ if(data.music && data.music.playing){ data.music.playing = false; } }catch(e){}
     try{applyTheme();}catch(e){}
     try{renderContacts();}catch(e){}
     try{renderHeader();}catch(e){}
     try{renderMessagesNow();}catch(e){}
     try{initCallMiniDrag();}catch(e){}
+    try{initMusicMiniDrag();}catch(e){}
+    try{updateMusicMini();}catch(e){}
+    try{
+        if(!window._unblockTicker){ window._unblockTicker = setInterval(scheduleUnblockRequestTick, 15*60*1000); }
+        setTimeout(scheduleUnblockRequestTick, 30000);
+    }catch(e){}
     try{updateLetterMenuDot();}catch(e){}
       try{updateNavBadge();}catch(e){}
     try{tryRestoreCall();}catch(e){}
